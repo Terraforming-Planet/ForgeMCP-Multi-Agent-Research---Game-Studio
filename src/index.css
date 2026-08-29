@@ -1,0 +1,147 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: #f0f4ff;
+  background: #0b1020;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+a {
+  color: #9bc1ff;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+header {
+  padding: 1rem;
+  border-bottom: 1px solid #27304a;
+  position: sticky;
+  top: 0;
+  background: #0b1020;
+  z-index: 1;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+main {
+  width: min(1200px, 94vw);
+  margin: 1rem auto 2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.card {
+  border: 1px solid #27304a;
+  border-radius: 12px;
+  padding: 1rem;
+  background: #101936;
+}
+
+.grid.two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.toolbar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.5rem 0;
+}
+
+button,
+input {
+  background: #1b2752;
+  color: #eef;
+  border: 1px solid #395299;
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+}
+
+input {
+  width: 100%;
+  margin-bottom: 0.4rem;
+}
+
+pre {
+  background: #0a1230;
+  border: 1px solid #27304a;
+  border-radius: 8px;
+  padding: 0.8rem;
+  overflow: auto;
+}
+
+.timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.badge {
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.badge-connected,
+.badge-pass,
+.badge-ready,
+.badge-webmcp_available {
+  color: #8df0a4;
+  border-color: #8df0a4;
+}
+
+.badge-warning,
+.badge-degraded,
+.badge-insufficient_data,
+.badge-webmcp_partially_available {
+  color: #ffd666;
+  border-color: #ffd666;
+}
+
+.badge-fail,
+.badge-error,
+.badge-not_connected,
+.badge-webmcp_unavailable {
+  color: #ffa2a2;
+  border-color: #ffa2a2;
+}
+
+.table-wrap {
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border: 1px solid #253152;
+  padding: 0.4rem;
+  text-align: left;
+}
