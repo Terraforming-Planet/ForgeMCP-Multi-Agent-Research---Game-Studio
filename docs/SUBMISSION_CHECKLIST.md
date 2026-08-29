@@ -1,0 +1,25 @@
+# Submission Checklist
+
+- [x] Public repository
+- [x] MIT/open-source license
+- [ ] Working public URL
+- [x] Production build PASS
+- [x] Real WebMCP implementation
+- [x] Multiple useful WebMCP tools
+- [x] Real tool invocation verified
+- [ ] Terra integration tested
+- [ ] Cube integration tested
+- [ ] ChatGPT browser tested
+- [ ] Chrome tested
+- [x] Verification visible
+- [x] Provenance visible
+- [x] Human approval visible
+- [x] No secrets
+- [x] Existing/new work documented
+- [x] Tests PASS
+- [x] Judge instructions
+- [x] README complete
+- [ ] Demo video under 3 minutes
+- [ ] Audio
+- [ ] Public YouTube URL
+- [ ] Final clean-browser test
