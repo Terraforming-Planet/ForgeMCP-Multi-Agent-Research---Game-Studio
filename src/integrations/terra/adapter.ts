@@ -1,6 +1,7 @@
 import type { IntegrationHealth, ProvenanceRecord } from '../../types/core'
 
 export const TERRA_APP_URL = 'https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/'
+export const TERRA_UPSTREAM_COMMIT = 'fd47cbf1137b1094e932b6657cbb4af4de9373d7'
 
 export interface TerraObservation {
   title: string
@@ -40,6 +41,23 @@ export async function searchLocation(query: string) {
     lat: Number(item.lat),
     lon: Number(item.lon),
   }))
+}
+
+export interface AreaOfInterest { name:string; lat:number; lon:number; radiusKm:number }
+export interface TerraStation { id:string; name:string; aoi:AreaOfInterest; startDate:string; endDate:string; createdAt:string }
+const stations = new Map<string,TerraStation>()
+export function setAreaOfInterest(input:AreaOfInterest):AreaOfInterest {
+  if(!Number.isFinite(input.lat)||input.lat < -90||input.lat > 90||!Number.isFinite(input.lon)||input.lon < -180||input.lon > 180) throw new Error('Invalid WGS84 coordinates')
+  return {...input,radiusKm:Math.max(1,Math.min(250,input.radiusKm))}
+}
+export function createResearchStation(name:string,aoi:AreaOfInterest):TerraStation {const now=new Date().toISOString();const station={id:`station-${Math.abs(Math.round(aoi.lat*10000))}-${Math.abs(Math.round(aoi.lon*10000))}`,name,aoi:setAreaOfInterest(aoi),startDate:now.slice(0,10),endDate:now.slice(0,10),createdAt:now};stations.set(station.id,station);return station}
+export function setStationTimespan(stationId:string,startDate:string,endDate:string){const s=stations.get(stationId);if(!s)throw new Error('Station not found');if(startDate>endDate)throw new Error('Start date must precede end date');Object.assign(s,{startDate,endDate});return s}
+
+export async function getElevationProfile(lat:number,lon:number){
+  const offsets=[-.02,-.01,0,.01,.02]; const latitude=offsets.map(d=>lat+d); const longitude=offsets.map(()=>lon)
+  const url=new URL('https://api.open-meteo.com/v1/elevation');url.searchParams.set('latitude',latitude.join(','));url.searchParams.set('longitude',longitude.join(','))
+  try {const response=await fetch(url);if(!response.ok)return {state:'NOT_CONNECTED' as const,error:`Elevation provider HTTP ${response.status}`,samples:[],provenance:[]};const body=await response.json() as {elevation?:number[]};if(!body.elevation?.length)return {state:'INSUFFICIENT_DATA' as const,error:'Provider returned no elevation samples',samples:[],provenance:[]};return {state:'OBSERVATION' as const,samples:body.elevation.map((e,i)=>({lat:latitude[i],lon:longitude[i],elevationM:e})),provenance:[{provider:'Open-Meteo',dataset:'Copernicus DEM GLO-90 elevation API',aoi:`${lat},${lon}`,dateTime:new Date().toISOString(),operation:'get_elevation_profile',tool:'get_elevation_profile',timestamp:new Date().toISOString(),uncertainty:'DEM raster samples, not surveyed ground heights',requestParameters:{lat,lon,samples:5}} satisfies ProvenanceRecord]}}
+  catch(error){return {state:'NOT_CONNECTED' as const,error:error instanceof Error?error.message:'Elevation provider unavailable',samples:[],provenance:[]}}
 }
 
 export async function findObservations(lat: number, lon: number, days: number) {

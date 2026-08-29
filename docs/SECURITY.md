@@ -13,8 +13,8 @@
 - Consequential actions are modeled with human approval queue.
 
 ## Read vs write policy
-- Current implemented WebMCP tools are read-only.
-- Promotion/apply actions require explicit human approval state.
+- Most tools are read-only or browser-local. Candidate promotion, rollback and visual approval require a literal explicit human approval input.
+- Candidate promotion also requires executed benchmark and legality/regression gates. Baseline state is retained for rollback.
 
 ## Secrets and privacy
 - No API keys/tokens are required for current public data sources.
@@ -22,7 +22,7 @@
 - Execution timeline stores safe metadata only.
 
 ## External API usage
-- Nominatim (location), NASA EONET (environmental event context), Terra/Cube public app endpoints (health checks).
+- Nominatim (location), NASA EONET (event context), Open-Meteo/Copernicus DEM (elevation), and public Terra/Cube app health checks.
 
 ## Logging
 - Timeline records timestamp, tool, status, duration, verification state, and errors.

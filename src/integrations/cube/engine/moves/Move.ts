@@ -1,0 +1,1 @@
+import type { Coordinate3D } from "../coordinates/Coordinate3D.js"; export interface Move { readonly pieceId:string; readonly from:Coordinate3D; readonly to:Coordinate3D; readonly capturedPieceId?:string; readonly kind:"quiet"|"capture"; }

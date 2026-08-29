@@ -1,113 +1,13 @@
 import type { ScientificResult, WorkflowEvent, WorkflowRun } from '../types/core'
-import { searchLocation, findObservations } from '../integrations/terra/adapter'
-import { inspectPosition } from '../integrations/cube/adapter'
+import { createCandidate, runTournament } from '../integrations/cube/lab'
+import { createResearchStation, findObservations, getElevationProfile, searchLocation } from '../integrations/terra/adapter'
+import { analyzeVisualReadability, proposeVisualChange, runVisualQa } from '../integrations/visual/workflow'
 import { verifyScientificEvidence } from '../verification/engine'
-
-function eventBase(workflow: string, tool: string, target: WorkflowEvent['integrationTarget']): Omit<WorkflowEvent, 'status' | 'durationMs' | 'resultType' | 'verificationState'> {
-  return {
-    timestamp: new Date().toISOString(),
-    workflow,
-    tool,
-    inputSummary: '',
-    integrationTarget: target,
-  }
-}
-
-export async function runTerraRiskWorkflow(request: string): Promise<WorkflowRun<ScientificResult>> {
-  const startedAt = new Date().toISOString()
-  const events: WorkflowEvent[] = []
-
-  const locationStart = Date.now()
-  const locations = await searchLocation(request)
-  const target = locations[0]
-  events.push({
-    ...eventBase('terra-risk', 'search_location', 'terra'),
-    inputSummary: request,
-    status: 'PASS',
-    durationMs: Date.now() - locationStart,
-    resultType: 'location_results',
-    verificationState: 'PASS',
-  })
-
-  const observationStart = Date.now()
-  const observationResult = await findObservations(target?.lat ?? 0, target?.lon ?? 0, 14)
-  events.push({
-    ...eventBase('terra-risk', 'find_observations', 'terra'),
-    inputSummary: `${target?.lat ?? 0}, ${target?.lon ?? 0}`,
-    status: observationResult.observations.length > 0 ? 'PASS' : 'WARNING',
-    durationMs: Date.now() - observationStart,
-    resultType: 'observation_results',
-    verificationState: observationResult.observations.length > 0 ? 'WARNING' : 'INSUFFICIENT_DATA',
-  })
-
-  const verification = verifyScientificEvidence(
-    observationResult.observations.length,
-    observationResult.provenance.length > 0,
-  )
-
-  const result: ScientificResult = {
-    state: observationResult.observations.length > 0 ? 'PRELIMINARY_RISK_ALERT' : 'INSUFFICIENT_DATA',
-    location: target?.displayName ?? 'Unknown',
-    timeWindow: 'Last 14 days',
-    indicators: observationResult.observations.map((o) => o.title).slice(0, 3),
-    sources: ['NASA EONET', 'OpenStreetMap Nominatim'],
-    evidence: observationResult.observations.map((o) => `${o.title} (${o.date})`),
-    confidence: observationResult.observations.length > 0 ? 0.45 : undefined,
-    uncertainties: ['Satellite-only context', 'No in-situ field measurements'],
-    verificationRequired: true,
-    requiredMeasurements: ['Field validation', 'Hydrological measurements'],
-    provenance: observationResult.provenance,
-  }
-
-  return {
-    id: crypto.randomUUID(),
-    workflow: 'terra-risk',
-    request,
-    state: verification.state === 'FAIL' ? 'FAILED' : 'WAITING_FOR_HUMAN',
-    agents: ['research-coordinator', 'source-scout', 'eo-analyst', 'hazard-agent', 'evidence-verifier'],
-    tools: ['search_location', 'find_observations', 'verify_evidence'],
-    events,
-    result,
-    verification,
-    errors: [],
-    startedAt,
-    completedAt: new Date().toISOString(),
-  }
-}
-
-export async function runCubeInspectionWorkflow(position: { x: number; y: number; z: number }): Promise<WorkflowRun<Record<string, unknown>>> {
-  const startedAt = new Date().toISOString()
-  const inspectStart = Date.now()
-  const inspect = await inspectPosition(position.x, position.y, position.z)
-
-  return {
-    id: crypto.randomUUID(),
-    workflow: 'cube-inspection',
-    request: `Inspect position ${position.x},${position.y},${position.z}`,
-    state: inspect.cubeConnection === 'CONNECTED' ? 'VERIFYING' : 'WARNING',
-    agents: ['game-coordinator', 'qa-agent'],
-    tools: ['inspect_position'],
-    events: [
-      {
-        ...eventBase('cube-inspection', 'inspect_position', 'cube'),
-        inputSummary: JSON.stringify(position),
-        status: inspect.cubeConnection === 'CONNECTED' ? 'PASS' : 'NOT CONNECTED',
-        durationMs: Date.now() - inspectStart,
-        resultType: 'position_inspection',
-        verificationState: inspect.cubeConnection === 'CONNECTED' ? 'INSUFFICIENT_DATA' : 'WARNING',
-      },
-    ],
-    result: inspect,
-    verification: {
-      state: inspect.cubeConnection === 'CONNECTED' ? 'WARNING' : 'INSUFFICIENT_DATA',
-      checks: ['Cube endpoint reachability', 'Coordinate validity'],
-      evidenceReferences: [inspect.notation],
-      uncertainties: ['Remote engine execution bridge not implemented'],
-      timestamp: new Date().toISOString(),
-      reason: 'Read-only inspection only in current stage.',
-    },
-    errors: [],
-    startedAt,
-    completedAt: new Date().toISOString(),
-  }
-}
+export type WorkflowIntent='terra-risk'|'cube-selfplay'|'visual-readability'
+export function routeRequest(request:string):WorkflowIntent{const q=request.toLowerCase();if(/visual|readability|contrast|camera|lighting/.test(q))return'visual-readability';if(/self.?play|tournament|candidate|benchmark|compete|chess/.test(q))return'cube-selfplay';return'terra-risk'}
+function event(order:number,workflow:string,tool:string,agent:string,status:WorkflowEvent['status'],verificationState:WorkflowEvent['verificationState'],inputSummary:string,provenance:string):WorkflowEvent{return{order,timestamp:new Date().toISOString(),coordinatorDecision:`Route ${tool} to ${agent}`,specialistAgent:agent,workflow,tool,inputSummary,integrationTarget:workflow==='terra-risk'?(tool==='verify_evidence'?'verification':'terra'):workflow==='visual-readability'?'visual':'cube',status,durationMs:0,resultType:'structured_result',verificationState,provenance}}
+export async function runTerraRiskWorkflow(request:string):Promise<WorkflowRun<ScientificResult>>{const startedAt=new Date().toISOString(),events:WorkflowEvent[]=[];try{const locations=await searchLocation(request),target=locations[0];events.push(event(1,'terra-risk','search_location','Source Scout',target?'PASS':'WARNING',target?'PASS':'INSUFFICIENT_DATA',request,'OpenStreetMap Nominatim'));if(!target)throw new Error('No matching location returned');const station=createResearchStation('Risk investigation',{name:target.displayName,lat:target.lat,lon:target.lon,radiusKm:100});events.push(event(2,'terra-risk','create_research_station','Coordinator','PASS','PASS',station.id,'Browser-run station'));const [obs,terrain]=await Promise.all([findObservations(target.lat,target.lon,30),getElevationProfile(target.lat,target.lon)]);events.push(event(3,'terra-risk','find_observations','EO Analyst',obs.observations.length?'PASS':'WARNING',obs.observations.length?'WARNING':'INSUFFICIENT_DATA','30 days','NASA EONET v3'));events.push(event(4,'terra-risk','get_elevation_profile','Terrain / Hydrology',terrain.state==='OBSERVATION'?'PASS':'WARNING',terrain.state==='OBSERVATION'?'WARNING':'INSUFFICIENT_DATA','5 samples','Open-Meteo / Copernicus DEM'));const provenance=[...obs.provenance,...terrain.provenance],verification=verifyScientificEvidence(obs.observations.length,provenance.length>0);events.push(event(5,'terra-risk','verify_evidence','Evidence Verifier','WARNING',verification.state,'Evidence count + provenance','Deterministic verifier'));const result:ScientificResult={state:obs.observations.length?'PRELIMINARY_RISK_ALERT':'INSUFFICIENT_DATA',location:target.displayName,timeWindow:'Last 30 days',indicators:obs.observations.map(o=>o.title),sources:['OpenStreetMap Nominatim','NASA EONET',...(terrain.state==='OBSERVATION'?['Copernicus DEM via Open-Meteo']:[])],evidence:[...obs.observations.map(o=>`${o.title} (${o.date})`),...(terrain.state==='OBSERVATION'?[`${terrain.samples.length} DEM samples`]:[])],confidence:obs.observations.length?.45:undefined,uncertainties:['Events are context, not causal proof','DEM raster samples are not surveyed heights','No in-situ data'],verificationRequired:true,requiredMeasurements:['Ground/in-situ verification','Hydrological measurements'],provenance};return{id:crypto.randomUUID(),workflow:'terra-risk',request,state:'WAITING_FOR_HUMAN',agents:['Coordinator','Source Scout','EO Analyst','Terrain / Hydrology','Evidence Verifier'],tools:events.map(e=>e.tool),events,result,verification,errors:[],startedAt,completedAt:new Date().toISOString()}}catch(e){const message=e instanceof Error?e.message:'Dependency unavailable';events.push(event(events.length+1,'terra-risk','upstream_dependency','Evidence Verifier','NOT CONNECTED','INSUFFICIENT_DATA',request,'None'));return{id:crypto.randomUUID(),workflow:'terra-risk',request,state:'WARNING',agents:['Coordinator','Evidence Verifier'],tools:events.map(x=>x.tool),events,result:{state:'INSUFFICIENT_DATA',location:'Unknown',timeWindow:'Last 30 days',indicators:[],sources:[],evidence:[],uncertainties:[message],verificationRequired:true,requiredMeasurements:['Restore dependency connectivity'],provenance:[]},verification:verifyScientificEvidence(0,false),errors:[message],startedAt,completedAt:new Date().toISOString()}}}
+export async function runCubeTrainingWorkflow(request:string):Promise<WorkflowRun>{const startedAt=new Date().toISOString(),candidate=createCandidate(`judge-${Date.now()}`),tournament=runTournament(candidate.id,4,512),events=[event(1,'cube-selfplay','create_ai_candidate','Training Agent','PASS','PASS',candidate.id,'Local policy'),event(2,'cube-selfplay','run_ai_tournament','Tournament Agent',tournament.status,tournament.illegalMoves?'FAIL':'PASS','4 paired games','Pinned Cube '+tournament.games[0]?.engineVersion),event(3,'cube-selfplay','evaluate_candidate','QA Agent',tournament.thresholdPass?'PASS':'WARNING',tournament.regressionPass?'PASS':'FAIL','Promotion gates','Executed records')];return{id:crypto.randomUUID(),workflow:'cube-selfplay',request,state:tournament.thresholdPass?'WAITING_FOR_HUMAN':'WARNING',agents:['Game Coordinator','Training Agent','Tournament Agent','QA Agent'],tools:events.map(e=>e.tool),events,result:{candidate,tournament,proposedAction:tournament.thresholdPass?'Eligible only after explicit approval':'Do not promote'},verification:{state:tournament.regressionPass?'PASS':'FAIL',checks:['Legal generation','Paired seeds','Side swap'],evidenceReferences:tournament.games.map(g=>g.gameId),uncertainties:['40-ply cap','Heuristic policies; no neural training'],timestamp:new Date().toISOString(),reason:'Pinned engine executed each move.'},errors:[],startedAt,completedAt:new Date().toISOString()}}
+export async function runVisualWorkflow(request:string):Promise<WorkflowRun>{const startedAt=new Date().toISOString(),analysis=analyzeVisualReadability(),proposal=proposeVisualChange(),qa=runVisualQa(proposal),qaState=qa.status as 'PASS'|'FAIL',events=[event(1,'visual-readability','analyze_visual_readability','Visual Agent','WARNING','WARNING','Current config',analysis.source),event(2,'visual-readability','preview_visual_change','Visual Agent','AWAITING APPROVAL','WARNING','Before/after diff','Preview only'),event(3,'visual-readability','run_visual_qa','QA Agent',qaState,qaState,'Configuration checks','Deterministic QA')];return{id:crypto.randomUUID(),workflow:'visual-readability',request,state:'WAITING_FOR_HUMAN',agents:['Game Coordinator','Visual Agent','QA Agent'],tools:events.map(e=>e.tool),events,result:{analysis,proposal,qa,proposedAction:'Human approve/reject; no live mutation'},verification:{state:qaState,checks:Object.keys(qa.checks),evidenceReferences:['Configuration diff'],uncertainties:[qa.limitation],timestamp:new Date().toISOString(),reason:'Reversible preview.'},errors:[],startedAt,completedAt:new Date().toISOString()}}
+export async function runCoordinator(request:string){const intent=routeRequest(request);return intent==='cube-selfplay'?runCubeTrainingWorkflow(request):intent==='visual-readability'?runVisualWorkflow(request):runTerraRiskWorkflow(request)}
+export const runCubeInspectionWorkflow=async()=>runCubeTrainingWorkflow('Inspect Cube through executed benchmark')

@@ -10,7 +10,7 @@ import { ResearchStations } from './components/ResearchStations'
 import { StatusBadge } from './components/StatusBadge'
 import { Timeline } from './components/Timeline'
 import { ToolInspector } from './components/ToolInspector'
-import { runCubeInspectionWorkflow, runTerraRiskWorkflow } from './coordinator/workflows'
+import { runCoordinator } from './coordinator/workflows'
 import { checkCubeHealth } from './integrations/cube/adapter'
 import { checkTerraHealth } from './integrations/terra/adapter'
 import type { ProvenanceRecord, WorkflowRun } from './types/core'
@@ -32,7 +32,6 @@ function Home() {
 function Dashboard() {
   const [request, setRequest] = useState('Investigate Lake Chad drying risk')
   const [run, setRun] = useState<WorkflowRun | null>(null)
-  const [cubeRun, setCubeRun] = useState<WorkflowRun | null>(null)
   const [terraHealth, setTerraHealth] = useState('UNKNOWN')
   const [cubeHealth, setCubeHealth] = useState('UNKNOWN')
   const [availability, setAvailability] = useState(detectWebMcpAvailability())
@@ -46,7 +45,8 @@ function Dashboard() {
     })()
   }, [])
 
-  const events = useMemo(() => [...(run?.events ?? []), ...(cubeRun?.events ?? [])], [run, cubeRun])
+  const events = useMemo(() => run?.events ?? [], [run])
+  const execute = async (prompt: string) => { setRequest(prompt); setRun(await runCoordinator(prompt)) }
 
   return (
     <>
@@ -57,13 +57,16 @@ function Dashboard() {
             <p>HUMAN REQUEST</p>
             <input value={request} onChange={(e) => setRequest(e.target.value)} />
             <div className="toolbar">
-              <button type="button" onClick={async () => setRun(await runTerraRiskWorkflow(request))}>Start Terra investigation</button>
-              <button type="button" onClick={async () => setCubeRun(await runCubeInspectionWorkflow({ x: 4, y: 4, z: 4 }))}>Run Cube inspection</button>
+              <button type="button" onClick={() => execute(request)}>Run coordinator</button>
+              <button type="button" onClick={() => execute('Investigate Lake Chad and assess potential environmental risk')}>Demo: OBSERVE Terra</button>
+              <button type="button" onClick={() => execute('Run a deterministic Cube Chess self-play benchmark')}>Demo: LEARN &amp; COMPETE</button>
+              <button type="button" onClick={() => execute("Improve the game's visual readability")}>Demo: CREATE + QA</button>
             </div>
           </div>
           <div>
             <p>WEBMCP</p>
             <StatusBadge value={availability} />
+            {availability !== 'WEBMCP_AVAILABLE' ? <p>Judge note: use a WebMCP-enabled browser exposing <code>document.modelContext.registerTool</code>. Dashboard demos remain available without claiming browser registration.</p> : null}
             <p>Terra</p>
             <StatusBadge value={terraHealth} />
             <p>Cube</p>
@@ -73,7 +76,8 @@ function Dashboard() {
       </section>
 
       <section className="card">
-        <h2>Coordinator & Active Agents</h2>
+        <h2>COORDINATOR &amp; ACTIVE AGENTS</h2>
+        <p>Decision: {run ? `deterministically routed to ${run.workflow}` : 'awaiting human request (no LLM claimed)'}</p>
         <ul>
           {agentRegistry.map((agent) => (
             <li key={agent.id}>{agent.name} — {agent.responsibility}</li>
@@ -93,12 +97,12 @@ function Dashboard() {
         <h2>Result & Verification</h2>
         <div className="grid two">
           <div>
-            <h3>Terra workflow result</h3>
+            <h3>FINDINGS · PROPOSED ACTION · CONFIDENCE · UNCERTAINTY</h3>
             <pre>{JSON.stringify(run?.result ?? { state: 'IDLE' }, null, 2)}</pre>
           </div>
           <div>
-            <h3>Cube workflow result</h3>
-            <pre>{JSON.stringify(cubeRun?.result ?? { state: 'IDLE' }, null, 2)}</pre>
+            <h3>VERIFICATION · PASS / WARNING / FAIL · HUMAN APPROVAL</h3>
+            <pre>{JSON.stringify(run?.verification ?? { state: 'IDLE' }, null, 2)}</pre>
           </div>
         </div>
         <p>AGENT PROPOSAL and HUMAN APPROVAL are separated in Approval Queue.</p>
@@ -192,12 +196,12 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/terra" element={<Placeholder title="Terra Research" />} />
+          <Route path="/terra" element={<Dashboard />} />
           <Route path="/stations" element={<ResearchStations />} />
           <Route path="/hazard" element={<Placeholder title="Hazard Intelligence" />} />
           <Route path="/cube" element={<CubeLab />} />
-          <Route path="/selfplay" element={<Placeholder title="Self-Play Lab" />} />
-          <Route path="/creation" element={<Placeholder title="Game Creation Studio" />} />
+          <Route path="/selfplay" element={<Dashboard />} />
+          <Route path="/creation" element={<Dashboard />} />
           <Route path="/tools" element={<ToolInspector />} />
           <Route path="/verification" element={<Placeholder title="Verification" />} />
           <Route path="/provenance" element={<ProvenanceViewer records={[]} />} />

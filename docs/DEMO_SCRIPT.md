@@ -4,19 +4,16 @@
 Explain ForgeMCP architecture: human, coordinator, specialist agents, WebMCP tools, verification, human control.
 
 ## 0:20–1:10 (Terra)
-Run Dashboard Terra investigation:
-- Show `search_location` and `find_observations`
+Click **Demo: OBSERVE Terra**:
+- Show real `search_location`, `find_observations`, and `get_elevation_profile`
 - Show preliminary classification and explicit verification-required language
 - Show provenance viewer
 
 ## 1:10–2:00 (Cube)
-Run Cube inspection workflow:
-- Show read-only tool operation
-- Show measured/unavailable metrics discipline
-- Show promotion gate state model and human approval boundary
+Click **Demo: LEARN & COMPETE**. Show four actually executed games, legal replay records, paired seed/side swap methodology, zero claimed Elo, and the promotion approval boundary.
 
 ## 2:00–2:35 (Create)
-Show visual workflow model and approval component; point out before/after evidence requirement and non-automatic application.
+Click **Demo: CREATE + QA**. Show the before/after configuration diff, QA checks, and `mutatesLiveGame: false`.
 
 ## 2:35–2:55
 Show WebMCP Tool Inspector, status labels (LIVE/NOT CONNECTED), verification, and human-control conclusion.

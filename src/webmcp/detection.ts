@@ -8,6 +8,7 @@ declare global {
         description: string
         inputSchema: Record<string, unknown>
         outputSchema: Record<string, unknown>
+        execute?: (input: unknown) => Promise<unknown>
       }) => Promise<void> | void
     }
   }
@@ -34,6 +35,7 @@ export async function registerWebMcpTools() {
       description: tool.description,
       inputSchema: tool.inputSchema,
       outputSchema: tool.outputSchema,
+      execute: tool.execute,
     })
     registered += 1
   }
