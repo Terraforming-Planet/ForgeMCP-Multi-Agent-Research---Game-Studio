@@ -1,0 +1,1 @@
+import type { Coordinate3D } from "../coordinates/Coordinate3D.js"; export type PieceType="pawn"|"rook"|"knight"|"bishop"|"queen"|"king"; export type PieceColor="white"|"black"; export interface Piece { readonly id:string; readonly type:PieceType; readonly color:PieceColor; readonly position:Coordinate3D; readonly hasMoved:boolean; }

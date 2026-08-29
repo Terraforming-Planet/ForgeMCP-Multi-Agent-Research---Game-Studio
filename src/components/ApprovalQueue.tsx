@@ -6,11 +6,11 @@ const initial: HumanApprovalItem[] = [
     id: 'approval-1',
     action: 'PROMOTE_AI_CANDIDATE',
     requestingAgent: 'Tournament Evaluator',
-    reason: 'Candidate passed legality and benchmark gate.',
-    evidence: ['20 legal games', 'No illegal moves'],
+    reason: 'Example approval shape; run a benchmark before enabling promotion.',
+    evidence: ['No benchmark attached — promotion disabled'],
     risk: 'Potential regression on unseen openings',
     reversibility: 'Rollback supported',
-    verification: 'Regression suite PASS',
+    verification: 'INSUFFICIENT_DATA',
   },
 ]
 

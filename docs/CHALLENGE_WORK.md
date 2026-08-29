@@ -10,7 +10,8 @@
 - New typed agent registry and typed WebMCP tool registry.
 - New WebMCP detection and runtime registration support.
 - New Terra read-only adapter operations (location and observation retrieval).
-- New Cube adapter boundary with health/inspection support.
+- Pinned authoritative Cube engine adapter, executed legal self-play/tournaments, replay records, metrics, promotion gates and rollback.
+- Reversible visual-readability before/after proposal, deterministic QA and approval boundary.
 - New verification, provenance, and human approval components.
 - New research station local model/UI and JSON export.
 - New CI workflow and test suite.
@@ -19,7 +20,7 @@
 - This repository: `ForgeMCP-Multi-Agent-Research---Game-Studio`
 - External labs referenced as integrations only:
   - `Polar-Sun-Moon-Analysis`
-  - `Cube Chess 512` public deployment URL (health check only)
+  - `Cube Chess 512` authoritative engine modules adapted at pinned commit `9543accfcef8f8786c32aed282aa63e49ad27615`
 
 ## Why meaningful WebMCP extension
 This work adds real agent-facing tool contracts, structured execution and verification, and runtime browser WebMCP registration capability so agents can operate bounded real functions rather than only describing systems.

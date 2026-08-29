@@ -31,6 +31,10 @@ export interface AgentDefinition {
 }
 
 export interface WorkflowEvent {
+  order?: number
+  coordinatorDecision?: string
+  specialistAgent?: string
+  provenance?: string
   timestamp: string
   tool: string
   workflow: string

@@ -1,116 +1,42 @@
+import { z } from 'zod'
 import type { IntegrationHealth } from '../types/core'
-import {
-  cubeInspectPositionInputSchema,
-  locationSearchInputSchema,
-  locationSearchOutputSchema,
-  statusOutputSchema,
-} from './contracts'
-
-export type ToolDomain = 'terra' | 'cube' | 'visual' | 'verification' | 'system'
-
-export interface WebMcpToolDefinition {
-  name: string
-  domain: ToolDomain
-  description: string
-  inputSchema: Record<string, unknown>
-  outputSchema: Record<string, unknown>
-  readOnly: boolean
-  requiresApproval: boolean
-  connectionStatus: IntegrationHealth
-  verificationPolicy: string
-}
-
-const terraNotImplemented = ['set_area_of_interest', 'create_research_station', 'set_station_timespan', 'add_station_dataset', 'compare_dates', 'compare_seasons', 'inspect_water', 'inspect_river', 'inspect_lake', 'inspect_terrain', 'get_elevation_profile', 'inspect_dryland', 'find_paleochannel_candidates', 'assess_environmental_risk', 'verify_evidence', 'generate_research_report']
-
-const cubeNotImplemented = ['get_game_state', 'get_legal_moves', 'create_ai_candidate', 'start_selfplay', 'run_ai_tournament', 'inspect_game', 'analyze_blunders', 'compare_ai_versions', 'tune_policy', 'evaluate_candidate', 'promote_ai_candidate', 'rollback_ai_candidate', 'inspect_visual_state', 'propose_visual_improvement', 'run_game_tests']
-
-export const webmcpTools: WebMcpToolDefinition[] = [
-  {
-    name: 'get_forgemcp_status',
-    domain: 'system',
-    description: 'Returns ForgeMCP runtime status and integration summary.',
-    inputSchema: {},
-    outputSchema: { type: 'object', fields: Object.keys(statusOutputSchema.shape) },
-    readOnly: true,
-    requiresApproval: false,
-    connectionStatus: 'CONNECTED',
-    verificationPolicy: 'System heartbeat and statuses only',
-  },
-  {
-    name: 'list_capabilities',
-    domain: 'system',
-    description: 'Lists currently registered tools and states.',
-    inputSchema: {},
-    outputSchema: { tools: ['name', 'domain', 'status'] },
-    readOnly: true,
-    requiresApproval: false,
-    connectionStatus: 'CONNECTED',
-    verificationPolicy: 'No mutation, transparent tool inventory',
-  },
-  {
-    name: 'get_integration_status',
-    domain: 'system',
-    description: 'Returns connection health for ForgeMCP, WebMCP, Terra and Cube.',
-    inputSchema: {},
-    outputSchema: { forge: 'CONNECTED|DEGRADED|NOT_CONNECTED|ERROR|UNKNOWN' },
-    readOnly: true,
-    requiresApproval: false,
-    connectionStatus: 'CONNECTED',
-    verificationPolicy: 'Explicit connection-state report only',
-  },
-  {
-    name: 'search_location',
-    domain: 'terra',
-    description: 'Read-only geospatial location lookup for AOI setup.',
-    inputSchema: { type: 'object', fields: Object.keys(locationSearchInputSchema.shape) },
-    outputSchema: { type: 'object', fields: Object.keys(locationSearchOutputSchema.shape) },
-    readOnly: true,
-    requiresApproval: false,
-    connectionStatus: 'CONNECTED',
-    verificationPolicy: 'Location only, no scientific claim',
-  },
-  {
-    name: 'find_observations',
-    domain: 'terra',
-    description: 'Fetches recent public environmental events for AOI context.',
-    inputSchema: { lat: 'number', lon: 'number', days: 'number<=60' },
-    outputSchema: { source: 'NASA EONET', events: 'array' },
-    readOnly: true,
-    requiresApproval: false,
-    connectionStatus: 'DEGRADED',
-    verificationPolicy: 'Classify as observation/anomaly only',
-  },
-  {
-    name: 'inspect_position',
-    domain: 'cube',
-    description: 'Read-only cube coordinate validation and remote health check.',
-    inputSchema: { type: 'object', fields: Object.keys(cubeInspectPositionInputSchema.shape) },
-    outputSchema: { isInsideBoard: 'boolean', cubeConnection: 'health status' },
-    readOnly: true,
-    requiresApproval: false,
-    connectionStatus: 'DEGRADED',
-    verificationPolicy: 'No engine mutation; deterministic coordinate check only',
-  },
-  ...terraNotImplemented.map((name) => ({
-    name,
-    domain: 'terra' as const,
-    description: 'Contract reserved; explicit NOT_IMPLEMENTED response.',
-    inputSchema: {},
-    outputSchema: { state: 'NOT_IMPLEMENTED' },
-    readOnly: true,
-    requiresApproval: false,
-    connectionStatus: 'NOT_CONNECTED' as IntegrationHealth,
-    verificationPolicy: 'Not implemented',
-  })),
-  ...cubeNotImplemented.map((name) => ({
-    name,
-    domain: 'cube' as const,
-    description: 'Contract reserved; explicit NOT_IMPLEMENTED response.',
-    inputSchema: {},
-    outputSchema: { state: 'NOT_IMPLEMENTED' },
-    readOnly: true,
-    requiresApproval: name.includes('promote') || name.includes('rollback'),
-    connectionStatus: 'NOT_CONNECTED' as IntegrationHealth,
-    verificationPolicy: 'Not implemented',
-  })),
+import { createCandidate, executeGame, promoteCandidate, rollbackCandidate, runTournament, type Tournament } from '../integrations/cube/lab'
+import { analyzeVisualReadability, decideVisualChange, proposeVisualChange, runVisualQa } from '../integrations/visual/workflow'
+import { createResearchStation, findObservations, getElevationProfile, searchLocation, setAreaOfInterest, setStationTimespan } from '../integrations/terra/adapter'
+import { verifyScientificEvidence } from '../verification/engine'
+export type ToolDomain='terra'|'cube'|'visual'|'verification'|'system'
+export interface WebMcpToolDefinition{name:string;domain:ToolDomain;description:string;inputSchema:Record<string,unknown>;outputSchema:Record<string,unknown>;readOnly:boolean;requiresApproval:boolean;connectionStatus:IntegrationHealth;verificationPolicy:string;execute:(input:unknown)=>Promise<unknown>}
+type Base=Omit<WebMcpToolDefinition,'inputSchema'|'outputSchema'|'connectionStatus'|'verificationPolicy'>
+const schema={type:'object',additionalProperties:true};const ok=(data:unknown,verification:'PASS'|'WARNING'|'INSUFFICIENT_DATA'='PASS')=>({state:verification==='PASS'?'PASS':'WARNING',data,verification,provenance:(data as {provenance?:unknown})?.provenance??[]})
+const safe=<T>(s:z.ZodType<T>,fn:(v:T)=>unknown|Promise<unknown>)=>async(input:unknown)=>{const p=s.safeParse(input);if(!p.success)return {state:'FAIL',verification:'FAIL',error:p.error.issues.map(i=>i.message).join('; '),provenance:[]};try{return await fn(p.data)}catch(e){return {state:'NOT_CONNECTED',verification:'INSUFFICIENT_DATA',error:e instanceof Error?e.message:'Dependency unavailable',provenance:[]}}}
+const empty=z.object({}).passthrough(),coords=z.object({lat:z.number().min(-90).max(90),lon:z.number().min(-180).max(180)})
+const tools:Base[]=[
+ {name:'get_forgemcp_status',domain:'system',description:'Return local runtime status.',readOnly:true,requiresApproval:false,execute:safe(empty,()=>ok({status:'READY',timestamp:new Date().toISOString()}))},
+ {name:'list_capabilities',domain:'system',description:'List bounded capabilities.',readOnly:true,requiresApproval:false,execute:safe(empty,()=>ok(webmcpTools.map(t=>({name:t.name,domain:t.domain,readOnly:t.readOnly,requiresApproval:t.requiresApproval}))))},
+ {name:'get_integration_status',domain:'system',description:'Report browser integration boundaries without probing hidden services.',readOnly:true,requiresApproval:false,execute:safe(empty,()=>ok({forge:'CONNECTED',cubeEngine:'CONNECTED_LOCAL_PINNED',terra:'PUBLIC_NETWORK_REQUIRED',webmcp:'BROWSER_DEPENDENT'}))},
+ {name:'search_location',domain:'terra',description:'Resolve a place with public OpenStreetMap Nominatim.',readOnly:true,requiresApproval:false,execute:safe(z.object({query:z.string().min(2).max(120)}),async v=>ok({results:await searchLocation(v.query),provenance:[{provider:'OpenStreetMap',dataset:'Nominatim',query:v.query}]}))},
+ {name:'set_area_of_interest',domain:'terra',description:'Validate and bound a WGS84 AOI.',readOnly:true,requiresApproval:false,execute:safe(coords.extend({name:z.string().min(1),radiusKm:z.number().min(1).max(250)}),v=>ok(setAreaOfInterest(v)))},
+ {name:'create_research_station',domain:'terra',description:'Create a browser-run research station.',readOnly:false,requiresApproval:false,execute:safe(coords.extend({name:z.string().min(1),radiusKm:z.number().min(1).max(250)}),v=>ok(createResearchStation(v.name,v)))},
+ {name:'set_station_timespan',domain:'terra',description:'Set an ISO date range.',readOnly:false,requiresApproval:false,execute:safe(z.object({stationId:z.string(),startDate:z.iso.date(),endDate:z.iso.date()}),v=>ok(setStationTimespan(v.stationId,v.startDate,v.endDate)))},
+ {name:'find_observations',domain:'terra',description:'Query real NASA EONET events near an AOI.',readOnly:true,requiresApproval:false,execute:safe(coords.extend({days:z.number().int().min(1).max(60)}),async v=>{const d=await findObservations(v.lat,v.lon,v.days);return ok(d,d.observations.length?'WARNING':'INSUFFICIENT_DATA')})},
+ {name:'compare_dates',domain:'terra',description:'Compare supplied observation counts without inferring cause.',readOnly:true,requiresApproval:false,execute:safe(z.object({dateA:z.iso.date(),countA:z.number().int().nonnegative(),dateB:z.iso.date(),countB:z.number().int().nonnegative()}),v=>ok({classification:'OBSERVATION',difference:v.countB-v.countA,...v,uncertainty:'Event-count comparison only.'},'WARNING'))},
+ {name:'get_elevation_profile',domain:'terra',description:'Fetch public Copernicus DEM samples via Open-Meteo.',readOnly:true,requiresApproval:false,execute:safe(coords,async v=>{const d=await getElevationProfile(v.lat,v.lon);return d.state==='OBSERVATION'?ok(d,'WARNING'):{state:d.state,verification:'INSUFFICIENT_DATA',error:d.error,provenance:[]}})},
+ {name:'verify_evidence',domain:'verification',description:'Apply deterministic provenance/sufficiency checks.',readOnly:true,requiresApproval:false,execute:safe(z.object({observations:z.number().int().nonnegative(),hasProvenance:z.boolean()}),v=>ok(verifyScientificEvidence(v.observations,v.hasProvenance),v.observations&&v.hasProvenance?'WARNING':'INSUFFICIENT_DATA'))},
+ {name:'generate_research_report',domain:'terra',description:'Package supplied evidence without inventing findings.',readOnly:true,requiresApproval:false,execute:safe(z.object({location:z.string(),classification:z.enum(['OBSERVATION','ANOMALY','HYPOTHESIS','PRELIMINARY_RISK_ALERT','VERIFIED_FINDING','INSUFFICIENT_DATA']),indicators:z.array(z.string()),sources:z.array(z.string()),uncertainty:z.array(z.string())}),v=>ok({...v,generatedAt:new Date().toISOString(),groundVerificationRequired:true},v.indicators.length?'WARNING':'INSUFFICIENT_DATA'))},
+ {name:'create_ai_candidate',domain:'cube',description:'Create a deterministic capture-policy candidate.',readOnly:false,requiresApproval:false,execute:safe(z.object({id:z.string().min(1).optional()}),v=>ok(createCandidate(v.id)))},
+ {name:'start_selfplay',domain:'cube',description:'Execute one legal deterministic Cube game.',readOnly:false,requiresApproval:false,execute:safe(z.object({seed:z.number().int().default(42),maxPlies:z.number().int().min(2).max(80).default(40)}),v=>ok(executeGame(v.seed,'candidate-capture-v1','baseline-v1',v.maxPlies)))},
+ {name:'run_ai_tournament',domain:'cube',description:'Execute paired seeded candidate-v-baseline games.',readOnly:false,requiresApproval:false,execute:safe(z.object({candidateId:z.string(),games:z.number().int().min(2).max(8),seed:z.number().int()}),v=>ok(runTournament(v.candidateId,v.games,v.seed),'WARNING'))},
+ {name:'inspect_game',domain:'cube',description:'Inspect a replay record.',readOnly:true,requiresApproval:false,execute:safe(z.object({game:z.unknown()}),v=>ok(v.game))},
+ {name:'analyze_blunders',domain:'cube',description:'Report deterministic material-loss proxy.',readOnly:true,requiresApproval:false,execute:safe(z.object({materialLossProxy:z.number()}),v=>ok(v))},
+ {name:'evaluate_candidate',domain:'cube',description:'Evaluate explicit tournament gates.',readOnly:true,requiresApproval:false,execute:safe(z.object({tournament:z.unknown()}),v=>ok(v.tournament))},
+ {name:'promote_ai_candidate',domain:'cube',description:'Promote only after gates and explicit approval.',readOnly:false,requiresApproval:true,execute:safe(z.object({candidateId:z.string(),tournament:z.unknown(),humanApproved:z.literal(true)}),v=>ok(promoteCandidate(v.candidateId,v.tournament as Tournament,v.humanApproved)))},
+ {name:'rollback_ai_candidate',domain:'cube',description:'Reversibly restore prior policy with approval.',readOnly:false,requiresApproval:true,execute:safe(z.object({candidateId:z.string(),humanApproved:z.literal(true)}),v=>ok(rollbackCandidate(v.candidateId,v.humanApproved)))},
+ {name:'analyze_visual_readability',domain:'visual',description:'Analyze current visual configuration.',readOnly:true,requiresApproval:false,execute:safe(empty,()=>ok(analyzeVisualReadability(),'WARNING'))},
+ {name:'propose_visual_change',domain:'visual',description:'Create a reversible preview diff.',readOnly:true,requiresApproval:false,execute:safe(empty,()=>ok(proposeVisualChange(),'WARNING'))},
+ {name:'preview_visual_change',domain:'visual',description:'Return before/after without live mutation.',readOnly:true,requiresApproval:false,execute:safe(empty,()=>ok(proposeVisualChange(),'WARNING'))},
+ {name:'run_visual_qa',domain:'visual',description:'Run deterministic configuration QA.',readOnly:true,requiresApproval:false,execute:safe(empty,()=>ok(runVisualQa()))},
+ {name:'approve_visual_change',domain:'visual',description:'Record approval; never mutate upstream.',readOnly:false,requiresApproval:true,execute:safe(z.object({humanApproved:z.literal(true)}),()=>ok(decideVisualChange('APPROVE')))},
+ {name:'reject_visual_change',domain:'visual',description:'Reject and discard preview.',readOnly:false,requiresApproval:false,execute:safe(empty,()=>ok(decideVisualChange('REJECT'),'WARNING'))},
 ]
+export const webmcpTools:WebMcpToolDefinition[]=tools.map(t=>({...t,inputSchema:schema,outputSchema:schema,connectionStatus:'CONNECTED',verificationPolicy:t.requiresApproval?'Automated gates plus explicit human approval':'Validated structured status and provenance'}))
+export const getTool=(name:string)=>webmcpTools.find(t=>t.name===name)
