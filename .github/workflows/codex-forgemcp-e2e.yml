@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 55
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - name: Checkout challenge branch
         uses: actions/checkout@v4
@@ -44,12 +45,16 @@ jobs:
             exit 1
           fi
           echo "::add-mask::$OPENAI_API_KEY"
+          echo "::add-mask::$CODEX_API_KEY"
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Codex CLI
-        run: npm install -g @openai/codex
+      - name: Install Codex CLI 0.148.0
+        run: npm install -g @openai/codex@0.148.0
+
+      - name: Verify Codex version
+        run: codex --version
 
       - name: Execute Codex task
         shell: bash
