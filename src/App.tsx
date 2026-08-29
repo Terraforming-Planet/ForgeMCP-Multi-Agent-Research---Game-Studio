@@ -81,7 +81,12 @@ function Dashboard() {
         </ul>
       </section>
 
-      {run?.result && 'provenance' in run.result ? <ProvenanceViewer records={(run.result.provenance as ProvenanceRecord[]) ?? []} /> : null}
+      {run?.result &&
+      typeof run.result === 'object' &&
+      run.result !== null &&
+      'provenance' in run.result ? (
+        <ProvenanceViewer records={((run.result as { provenance?: ProvenanceRecord[] }).provenance ?? []) as ProvenanceRecord[]} />
+      ) : null}
       <Timeline events={events} />
 
       <section className="card">
@@ -104,7 +109,7 @@ function Dashboard() {
 
 function IntegrationStatusPage() {
   const grouped = {
-    IMPLEMENTED: webmcpTools.filter((tool) => !tool.name.includes('NOT_IMPLEMENTED')),
+    IMPLEMENTED: webmcpTools.filter((tool) => tool.connectionStatus !== 'NOT_CONNECTED'),
     NOT_CONNECTED: webmcpTools.filter((tool) => tool.connectionStatus === 'NOT_CONNECTED'),
   }
 
