@@ -1,0 +1,85 @@
+name: Codex ForgeMCP E2E Challenge Pass
+
+on:
+  push:
+    branches:
+      - forgemcp-e2e-challenge-pass
+    paths:
+      - 'docs/CODEX_E2E_CHALLENGE_PASS.md'
+      - '.github/workflows/codex-forgemcp-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: codex-forgemcp-e2e
+  cancel-in-progress: false
+
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Checkout challenge branch
+        uses: actions/checkout@v4
+        with:
+          ref: forgemcp-e2e-challenge-pass
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Validate and mask OpenAI API key
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "OPENAI_API_KEY repository secret is missing."
+            exit 1
+          fi
+          echo "::add-mask::$OPENAI_API_KEY"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Codex CLI
+        run: npm install -g @openai/codex
+
+      - name: Execute Codex task
+        shell: bash
+        run: |
+          set -euo pipefail
+          codex exec \
+            --dangerously-bypass-approvals-and-sandbox \
+            --skip-git-repo-check \
+            "$(cat docs/CODEX_E2E_CHALLENGE_PASS.md)"
+
+      - name: Validate implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm test
+          npm run build
+          npm run lint
+
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "ForgeMCP Codex"
+          git config user.email "actions@users.noreply.github.com"
+          git status --short
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "Codex produced no tracked changes."
+            exit 1
+          fi
+          git add -A
+          git commit -m "feat: complete ForgeMCP end-to-end WebMCP challenge workflows"
+          git push origin HEAD:forgemcp-e2e-challenge-pass
