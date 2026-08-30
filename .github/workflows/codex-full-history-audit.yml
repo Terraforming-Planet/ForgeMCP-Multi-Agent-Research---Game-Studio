@@ -1,0 +1,89 @@
+name: Codex ForgeMCP Full History Audit
+
+on:
+  push:
+    branches:
+      - forgemcp-full-history-audit
+    paths:
+      - 'docs/CODEX_FULL_HISTORY_AUDIT.md'
+      - '.github/workflows/codex-full-history-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: codex-forgemcp-full-history-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout audit branch
+        uses: actions/checkout@v4
+        with:
+          ref: forgemcp-full-history-audit
+          fetch-depth: 0
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Validate and mask OpenAI API key
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "OPENAI_API_KEY repository secret is missing."
+            exit 1
+          fi
+          echo "::add-mask::$OPENAI_API_KEY"
+          echo "::add-mask::$CODEX_API_KEY"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install pinned Codex CLI
+        run: npm install -g @openai/codex@0.148.0
+
+      - name: Execute full-history audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          codex exec \
+            --dangerously-bypass-approvals-and-sandbox \
+            --skip-git-repo-check \
+            "$(cat docs/CODEX_FULL_HISTORY_AUDIT.md)"
+
+      - name: Validate ForgeMCP after audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm test
+          npm run build
+          npm run lint
+
+      - name: Commit audit outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "ForgeMCP Codex"
+          git config user.email "actions@users.noreply.github.com"
+          git status --short
+          git add -A
+          git diff --cached --stat
+          if git diff --cached --quiet; then
+            echo "Codex produced no audit outputs."
+            exit 1
+          fi
+          git commit -m "docs: audit full Terra and Cube history for WebMCP reuse"
+          git push origin HEAD:forgemcp-full-history-audit
