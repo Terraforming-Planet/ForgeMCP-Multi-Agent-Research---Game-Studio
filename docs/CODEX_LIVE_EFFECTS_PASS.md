@@ -1,190 +1,206 @@
-# Codex task — ForgeMCP visible real-effects pass
+# Codex task — ForgeMCP visible real-effects pass (REPAIR / MUST CHANGE CODE)
 
-Work in the public ForgeMCP repository. The previous challenge pass is already merged into `main`. This task is not about adding more marketing copy. The owner must be able to open public pages and SEE real effects produced by ForgeMCP for Terra Observation System and Cube Chess 512.
+You are working on branch `forgemcp-live-effects-pass` in the public ForgeMCP repository.
 
-## Goal
+The previous run incorrectly finished with **zero tracked implementation changes**. That is not acceptable. This repair pass MUST inspect the current code and MUST produce real source-code changes before validation/commit.
 
-Create a judge-ready, human-visible live demo with three concrete workflows:
+## Current audited gap — do not treat this as already complete
 
-1. TERRA — a real place, real external/public data lookup, provenance, uncertainty, and a visible research result.
-2. CUBE SELF-PLAY — actual legal baseline-vs-candidate games executed through the deterministic Cube engine path already in the repo, with real per-run counts and metrics.
-3. CUBE VISUAL — a visible reversible BEFORE/AFTER readability preview with QA and explicit human approval gate.
+`src/App.tsx` currently routes `/terra`, `/selfplay`, and `/creation` mostly to the generic `Dashboard`, and several areas remain placeholders. The required judge-facing live-effect pages do not yet exist as dedicated implementations.
 
-Do not claim anything that did not really execute.
+Therefore this run MUST create dedicated working demo components/routes and wire them into the app. Do not stop after analysis and do not answer that the work already exists.
 
-## Public pages / routes
+## Mandatory changed files
 
-Create stable user-facing routes or equivalent deep-link states so the owner and judges can test each workflow directly, preferably:
+At minimum, create or materially modify ALL of these:
+
+- `src/App.tsx`
+- `src/components/TerraLiveDemo.tsx`
+- `src/components/CubeSelfPlayLiveDemo.tsx`
+- `src/components/VisualReadabilityLiveDemo.tsx`
+- `src/App.css` and/or `src/index.css`
+- `src/tests/liveEffects.test.ts` (or equivalent dedicated test file)
+- `src/webmcp/registry.ts` and/or the existing WebMCP registration file if needed to expose the demo actions
+- `README.md`
+
+Also add/update GitHub Pages deployment/configuration if it is still missing.
+
+If an exact mandatory file already exists, materially improve it. The final `git status --short` MUST show tracked source/test/doc changes caused by this run.
+
+## Required public routes
+
+Implement dedicated routes/deep links:
 
 - `/demo/terra`
 - `/demo/cube-selfplay`
 - `/demo/visual`
 
-Also provide a landing dashboard with three large one-click buttons.
+Add three large one-click cards/buttons on the landing/dashboard so a judge can launch each demo immediately.
 
-The app must work when deployed under the GitHub Pages repository subpath, not only at `/` on localhost. Configure Vite/router accordingly.
+The app must work under the GitHub Pages repository base path:
+`/ForgeMCP-Multi-Agent-Research---Game-Studio/`
 
-## TERRA — visible real effect
+## 1) TERRA — visible real network effect
 
-Build a one-click demo that starts with a real place. Choose a reliable default AOI that is scientifically understandable and likely to return public events/observations, but also allow the user to type/search another place.
+Create `TerraLiveDemo` as a real interactive page, not a static marketing card.
 
-Minimum visible sequence:
+Required sequence visible on screen:
+HUMAN REQUEST → COORDINATOR → SOURCE SCOUT → WEBMCP TOOL → REAL SOURCE → RESULT → EVIDENCE VERIFIER → VERIFICATION → HUMAN DECISION
 
-Human request
-→ Coordinator
-→ Source Scout
-→ `search_location`
-→ AOI shown on screen with coordinates
-→ real external observation lookup through the existing truthful Nominatim/NASA EONET adapter(s)
-→ Evidence Verifier
-→ structured result
+Use the existing truthful Terra adapters. In normal browser execution make at least one real public network request using the existing Nominatim and/or NASA EONET integration path.
 
-The screen must visibly show:
-- place/AOI
-- coordinates
-- request time/range
-- exact public source names
-- source URLs/provenance if available
-- observation count returned by the actual request
-- each observation/event name and date when available
-- classification restricted to OBSERVATION / ANOMALY / HYPOTHESIS / PRELIMINARY_RISK_ALERT / VERIFIED_FINDING / INSUFFICIENT_DATA
-- confidence
-- uncertainty
-- required field/in-situ verification
-- PASS/WARNING/FAIL verification state
-
-Important: NASA EONET event presence is not proof of a specific local cause. If data is insufficient for a risk statement, show `INSUFFICIENT_DATA` rather than inventing a hazard.
-
-The demo must make at least one real network call in normal browser execution. Add a visible network/source state so the owner can distinguish `LIVE DATA` from fallback/error.
-
-If CORS/network failure occurs, return a truthful structured failure and still show provenance/what failed.
-
-## CUBE — visible real self-play effect
-
-Use the deterministic Cube engine path that was added in the previous pass. Audit it first. Do not silently replace it with random fake outcomes.
-
-Create a user-facing self-play lab where a human can click e.g. `Run 4 real games` (small number is fine for reliability) and SEE the games actually execute.
-
-Required visible fields:
-- baseline policy/version
-- candidate policy/version
-- number of requested games
-- number of actually completed games
-- deterministic seed/opening id for every game
-- side/color assignment and swap
-- legal move count
-- illegal move count (must be measured, not hardcoded)
-- result/termination reason
-- move list or replayable move log accessible per game
-- total W/D/L
-- material-loss/blunder proxy if implemented deterministically
-- move/position diversity
-- elapsed time / move time where measurable
-- search nodes only if truly exposed by the engine; otherwise show `NOT_AVAILABLE`
-- Elo only if there is a documented real methodology; otherwise do not show Elo
-
-Add a simple animated progress view while games execute so it is obvious this is not a static table.
-
-Candidate evaluation must end in PASS/WARNING/FAIL based on a documented threshold. Promotion control must remain disabled unless:
-1. benchmark PASS,
-2. legality/regression PASS,
-3. human explicitly approves.
-
-A click on promotion may update only a reversible local/demo state unless there is a safe real persistent path. Never overwrite the upstream Cube live game automatically.
-
-Show a prominent truth statement: `This run reports only games executed in this run.`
-
-## CUBE VISUAL — visible before/after effect
-
-Create a direct page where the user can SEE a deterministic/reversible visual readability proposal.
-
-Use current Cube UI/board metadata/configuration already available in the repo or a clearly-labelled preview model. Do not pretend a screenshot is live if it is not.
-
-Show side-by-side or toggleable BEFORE and AFTER representations. The change should be visibly meaningful, for example:
-- clearer layer separation for 8 board levels,
-- stronger selected-square/legal-move contrast,
-- improved camera/readability overlay,
-- mobile scale/readability adjustment,
-- accessible contrast indicators.
+Default AOI may be Lake Chad, but the user must be able to search another place.
 
 Show:
-analysis → proposed changes → BEFORE/AFTER → QA checks → PASS/WARNING/FAIL → Approve / Reject
+- place/AOI and coordinates
+- request time/range
+- exact source name
+- source/provenance URL when available
+- LIVE DATA / ERROR / FALLBACK state
+- real observation/event count returned by this run
+- event/observation names and dates when returned
+- classification restricted to `OBSERVATION`, `ANOMALY`, `HYPOTHESIS`, `PRELIMINARY_RISK_ALERT`, `VERIFIED_FINDING`, `INSUFFICIENT_DATA`
+- confidence
+- uncertainty
+- required ground/in-situ verification
+- PASS/WARNING/FAIL verification state
 
-Approval only updates the reversible preview/demo configuration unless a safe real mutation path exists. Include Reset/Rollback.
+Never turn absence of EONET events into proof of safety, and never invent a cause or hazard. On network/CORS failure show a structured truthful failure.
 
-## Coordinator / WebMCP visibility
+## 2) CUBE SELF-PLAY — real executed games
 
-For all three pages, make the WebMCP collaboration visible rather than hidden:
-- HUMAN REQUEST
-- COORDINATOR
-- ACTIVE AGENT
-- WEBMCP TOOL
-- REAL SOURCE / ENGINE
-- RESULT
-- VERIFICATION
-- HUMAN DECISION
+Create `CubeSelfPlayLiveDemo` backed by the deterministic Cube legality/engine path already present in this repo. Audit that path first. Do NOT generate random fake W/D/L rows.
 
-Use the existing real `document.modelContext.registerTool(...)` path. Ensure the newly exposed demo actions are reachable through WebMCP tool registration where appropriate, with validated inputs and structured outputs.
+Provide a visible button such as `Run 4 real games`.
 
-Unsupported browsers must show clear instructions instead of crashing.
+For every run, actually execute the requested games and render progress while they execute.
+
+Visible fields:
+- baseline version/policy
+- candidate version/policy
+- requested games
+- actually completed games
+- deterministic seed/opening id per game
+- side/color assignment and side swap
+- legal move count measured from the legality path
+- illegal move count measured, not hardcoded
+- termination reason/result
+- expandable move log per game
+- total W/D/L derived from completed records
+- deterministic blunder/material-loss proxy only if actually implemented
+- diversity metric derived from executed records
+- elapsed/move time where measurable
+- search nodes only if really exposed, otherwise `NOT_AVAILABLE`
+- no Elo unless there is a real documented methodology
+
+Show prominently:
+`This run reports only games executed in this run.`
+
+Evaluation must return PASS/WARNING/FAIL from documented thresholds derived from actual run records.
+
+Promotion stays disabled unless ALL are true:
+1. benchmark PASS,
+2. legality/regression PASS,
+3. explicit human approval.
+
+Promotion may only change reversible local/demo state unless a safe persistence path already exists. Never overwrite upstream Cube automatically.
+
+## 3) CUBE VISUAL — visible BEFORE/AFTER
+
+Create `VisualReadabilityLiveDemo` that visibly changes a real preview representation.
+
+Must show side-by-side or toggleable BEFORE/AFTER, with a meaningful deterministic readability change such as:
+- stronger 8-layer separation,
+- clearer legal/selected-square contrast,
+- improved overlay/camera/readability cues,
+- mobile scale adjustment,
+- accessible contrast indicators.
+
+Required flow visible:
+ANALYSIS → PROPOSED CHANGES → BEFORE/AFTER → QA → PASS/WARNING/FAIL → APPROVE / REJECT
+
+Add Reset/Rollback. Approval changes only reversible preview/demo configuration unless there is an already-safe mutation path.
+
+Do not present a static screenshot as a live engine effect.
+
+## WebMCP visibility and tools
+
+Use the existing real `document.modelContext.registerTool(...)` path.
+
+Expose appropriate structured demo actions through WebMCP with validated inputs/outputs. Prefer small single-responsibility tools, e.g. existing equivalents of:
+- Terra search/observation tool
+- Cube self-play run/evaluate tool
+- visual preview/apply/reset tool
+
+Do not duplicate a tool if an equivalent already exists; wire the page to the existing real implementation and registration.
+
+Unsupported browsers must show a clear `WebMCP unavailable in this browser` message without crashing, while the human UI demo remains usable where technically possible.
 
 ## Deployment
 
-Add a production GitHub Pages deployment workflow for ForgeMCP if it does not already exist. It should deploy `main` automatically and support Vite base path for:
-
+If missing, add a GitHub Pages workflow using official Pages actions that deploys `main` and supports Vite base path for:
 `https://terraforming-planet.github.io/ForgeMCP-Multi-Agent-Research---Game-Studio/`
 
-The workflow must use official GitHub Pages actions and no secrets other than normal GitHub Pages permissions.
-
-Add README links to:
-- live ForgeMCP
-- direct Terra demo
-- direct Cube self-play demo
-- direct Visual demo
+README must contain direct links for:
+- ForgeMCP live site
+- `/demo/terra`
+- `/demo/cube-selfplay`
+- `/demo/visual`
 - upstream Terra
 - upstream Cube
 
-If Pages requires a repository setting that code cannot enable, document the exact single manual step in `docs/JUDGE_TESTING.md`; do not falsely claim deployment is live.
+If repository Pages settings require one manual action, document only that exact action in `docs/JUDGE_TESTING.md`.
 
-## Tests
+## Tests — mandatory
 
-Add/strengthen tests that prove the visible demos are backed by real logic:
-- Terra network adapter success shape and failure -> no fabricated success
-- classification safety
-- Cube requested count equals real executed records
-- every recorded move accepted by legality path
-- side swap/seeds deterministic
-- benchmark aggregation derives from actual records
-- promotion gate cannot pass without all three conditions
-- visual preview is reversible
-- router/base path supports Pages
-- WebMCP registration for demo tools
+Add/strengthen tests proving the demos are backed by logic, not text:
+- Terra success shape comes from adapter response
+- Terra network failure never becomes fabricated success
+- safe classification behavior
+- Cube requested count equals actual executed records
+- every recorded move is accepted by legality path
+- seeds and side swap deterministic
+- benchmark aggregation is derived from actual records
+- promotion gate cannot pass without benchmark + legality + human approval
+- visual preview changes state and rollback restores BEFORE state
+- routes/base path work for GitHub Pages
+- WebMCP registration contains the demo-capable tools
 
-Run and fix until all pass:
+Run until green:
 - `npm run typecheck`
 - `npm test`
 - `npm run build`
 - `npm run lint`
 
-## Security/truth
+## Security and truth
 
-Never commit API keys/tokens/.env/credentials.
-Never fabricate external calls, observations, game counts, W/D/L, Elo, benchmark improvement, QA PASS, or source connectivity.
-Do not label historical PR #101/#102 as neural-network training.
-Do not use historical 100K/3K counts as results of this new demo.
+Never commit API keys, tokens, `.env`, credentials, private data, or generated secrets.
+Never fabricate external calls, observations, game counts, W/D/L, benchmark improvement, QA PASS, search nodes, Elo, or connectivity.
+Do not call historical PR #101/#102 neural-network training.
+Do not reuse historical 100K/3K counts as results of this demo.
+The deterministic rules engine remains the source of truth for Cube legality.
 
-## Final report
+## Completion gate — critical
 
-At the end print:
-- exact public routes created
-- exact WebMCP tools used by each route
-- exact Terra external sources called
-- exact number of Cube games executed by tests and by default demo configuration
+Before ending, run:
+
+```bash
+git status --short
+git diff --stat
+```
+
+If there are **zero tracked implementation changes**, you have NOT completed the task. Continue implementing until the mandatory source/test files above are changed.
+
+Do not merely print a plan or final report. Inspect → implement → test → fix → verify tracked diff.
+
+Then print a concise final report containing:
+- routes created
+- WebMCP tools used
+- real Terra sources called
+- default self-play game count and how counts are derived
 - benchmark methodology
 - visual change demonstrated
-- tests/build/lint status
-- deployment status and any manual Pages step
-- honest remaining limitations
+- typecheck/test/build/lint status
+- deployment status/manual Pages step if any
 - changed files
-
-Do not stop at a plan. Inspect, implement, test, fix, and commit the working result to the current branch.
+- remaining limitations
