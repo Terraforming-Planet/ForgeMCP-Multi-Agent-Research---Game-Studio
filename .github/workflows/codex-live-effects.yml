@@ -80,11 +80,23 @@ jobs:
           set -euo pipefail
           git config user.name "ForgeMCP Codex"
           git config user.email "actions@users.noreply.github.com"
+
+          echo "Working tree before staging:"
           git status --short
-          if git diff --quiet && git diff --cached --quiet; then
-            echo "Codex produced no tracked changes."
+
+          # IMPORTANT: stage first so newly created/untracked Codex files are included.
+          # The previous workflow checked git diff before staging and could falsely
+          # report 'no changes' when Codex had created only new files.
+          git add -A
+
+          echo "Staged implementation diff:"
+          git diff --cached --stat
+          git status --short
+
+          if git diff --cached --quiet; then
+            echo "Codex produced no implementation changes after staging all tracked/untracked files."
             exit 1
           fi
-          git add -A
+
           git commit -m "feat: add visible Terra Cube and visual live effects"
           git push origin HEAD:forgemcp-live-effects-pass
