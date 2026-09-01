@@ -78,6 +78,11 @@ input {
   padding: 0.5rem 0.7rem;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 input {
   width: 100%;
   margin-bottom: 0.4rem;
@@ -144,4 +149,80 @@ td {
   border: 1px solid #253152;
   padding: 0.4rem;
   text-align: left;
+}
+
+.lab-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  background: linear-gradient(135deg, #101936 0%, #142a3d 100%);
+}
+
+.eyebrow,
+.lab-facts small {
+  color: #8fd7ff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lab-status-stack {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.lab-facts,
+.lab-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.lab-facts article,
+.lab-agent-grid article,
+.lab-conclusion article,
+.card > .grid article {
+  border: 1px solid #2d3d61;
+  border-radius: 10px;
+  padding: 0.85rem;
+  background: #0d1731;
+}
+
+.lab-facts b,
+.lab-facts span {
+  display: block;
+  margin-top: 0.35rem;
+}
+
+.lab-facts span,
+.lab-note,
+small {
+  color: #b9c4dd;
+}
+
+.lab-note {
+  border-left: 3px solid #8fd7ff;
+  padding-left: 0.75rem;
+}
+
+.lab-error {
+  border: 1px solid #ffa2a2;
+  border-radius: 8px;
+  color: #ffd0d0;
+  padding: 0.75rem;
+}
+
+@media (max-width: 700px) {
+  .lab-hero {
+    flex-direction: column;
+  }
+
+  .lab-status-stack {
+    justify-content: flex-start;
+  }
 }
