@@ -1,4 +1,6 @@
-# LabMCP TEST 001 — forest pond near Lake Kuchnia
+# LabMCP TEST 001 preset — forest pond near Lake Kuchnia
+
+TEST 001 is a preconfigured example inside the general LabMCP environmental hazard-investigation workspace. Users may select or type any other region, years and hazard classes; see [LABMCP_HAZARD_INVESTIGATION.md](LABMCP_HAZARD_INVESTIGATION.md).
 
 ## Pre-registered scope
 

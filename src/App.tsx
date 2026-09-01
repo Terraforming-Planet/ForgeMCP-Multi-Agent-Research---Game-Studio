@@ -22,9 +22,9 @@ function Home() {
   return (
     <section className="card">
       <h1>ForgeMCP</h1>
-      <p>Observe the Real World. Learn &amp; Compete. Create. Verify.</p>
+      <p>Observe the Real World. Investigate. Warn responsibly. Repair and regenerate. Verify.</p>
       <p>
-        ForgeMCP connects humans and specialized agents through real WebMCP tools to Terra Observation System and Cube Chess 512.
+        ForgeMCP connects humans and specialized agents through real WebMCP tools to Terra Observation System and Cube Chess 512. LabMCP investigates user-selected regions across years while keeping observations, hypotheses, alerts and verified field findings separate.
       </p>
     </section>
   )
@@ -60,7 +60,7 @@ function Dashboard() {
             <div className="toolbar">
               <button type="button" onClick={() => execute(request)}>Run coordinator</button>
               <button type="button" onClick={() => execute('Lake Chad')}>Demo: OBSERVE Terra</button>
-              <button type="button" onClick={() => execute('Run LabMCP TEST 001 for Lake Kuchnia and Toruń reference resolution')}>Demo: LabMCP TEST 001</button>
+              <Link className="button-link" to="/labmcp">Open: LabMCP hazard investigation</Link>
               <button type="button" onClick={() => execute('Run a deterministic Cube Chess self-play benchmark')}>Demo: LEARN &amp; COMPETE</button>
               <button type="button" onClick={() => execute("Improve the game's visual readability")}>Demo: CREATE + QA</button>
             </div>
@@ -206,7 +206,7 @@ function App() {
           <Route path="/terra" element={<Dashboard />} />
           <Route path="/labmcp" element={<LabMcp />} />
           <Route path="/stations" element={<ResearchStations />} />
-          <Route path="/hazard" element={<Placeholder title="Hazard Intelligence" />} />
+          <Route path="/hazard" element={<LabMcp />} />
           <Route path="/cube" element={<CubeLab />} />
           <Route path="/selfplay" element={<Dashboard />} />
           <Route path="/creation" element={<Dashboard />} />
