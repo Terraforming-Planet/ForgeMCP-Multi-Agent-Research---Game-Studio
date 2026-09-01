@@ -24,21 +24,31 @@ export function detectWebMcpAvailability(): WebMcpAvailability {
   return 'WEBMCP_PARTIALLY_AVAILABLE'
 }
 
+let registeredContext: Document['modelContext'] | undefined
+let registrationPromise: Promise<{ availability: WebMcpAvailability; registered: number }> | undefined
+
 export async function registerWebMcpTools() {
   const availability = detectWebMcpAvailability()
   if (availability !== 'WEBMCP_AVAILABLE') return { availability, registered: 0 }
 
-  let registered = 0
-  for (const tool of webmcpTools.filter((item) => item.connectionStatus !== 'NOT_CONNECTED')) {
-    await document.modelContext?.registerTool({
-      name: tool.name,
-      description: tool.description,
-      inputSchema: tool.inputSchema,
-      outputSchema: tool.outputSchema,
-      execute: tool.execute,
-    })
-    registered += 1
-  }
+  const context = document.modelContext
+  if (context === registeredContext && registrationPromise) return registrationPromise
 
-  return { availability, registered }
+  registeredContext = context
+  registrationPromise = (async () => {
+    let registered = 0
+    for (const tool of webmcpTools.filter((item) => item.connectionStatus !== 'NOT_CONNECTED')) {
+      await context?.registerTool({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        outputSchema: tool.outputSchema,
+        execute: tool.execute,
+      })
+      registered += 1
+    }
+    return { availability, registered }
+  })()
+
+  return registrationPromise
 }

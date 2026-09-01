@@ -5,6 +5,7 @@ import { agentRegistry } from './agents/registry'
 import { ApprovalQueue } from './components/ApprovalQueue'
 import { ChallengeEvidence } from './components/ChallengeEvidence'
 import { CubeLab } from './components/CubeLab'
+import { LabMcp } from './components/LabMcp'
 import { ProvenanceViewer } from './components/ProvenanceViewer'
 import { ResearchStations } from './components/ResearchStations'
 import { StatusBadge } from './components/StatusBadge'
@@ -58,7 +59,8 @@ function Dashboard() {
             <input value={request} onChange={(e) => setRequest(e.target.value)} />
             <div className="toolbar">
               <button type="button" onClick={() => execute(request)}>Run coordinator</button>
-              <button type="button" onClick={() => execute('Investigate Lake Chad and assess potential environmental risk')}>Demo: OBSERVE Terra</button>
+              <button type="button" onClick={() => execute('Lake Chad')}>Demo: OBSERVE Terra</button>
+              <button type="button" onClick={() => execute('Run LabMCP TEST 001 for Lake Kuchnia and Toruń reference resolution')}>Demo: LabMCP TEST 001</button>
               <button type="button" onClick={() => execute('Run a deterministic Cube Chess self-play benchmark')}>Demo: LEARN &amp; COMPETE</button>
               <button type="button" onClick={() => execute("Improve the game's visual readability")}>Demo: CREATE + QA</button>
             </div>
@@ -166,6 +168,10 @@ function Placeholder({ title }: { title: string }) {
 }
 
 function App() {
+  useEffect(() => {
+    void registerWebMcpTools()
+  }, [])
+
   return (
     <div className="app-shell">
       <header>
@@ -174,6 +180,7 @@ function App() {
           <Link to="/">Home</Link>
           <Link to="/dashboard">Dashboard</Link>
           <Link to="/terra">Terra Research</Link>
+          <Link to="/labmcp">LabMCP</Link>
           <Link to="/stations">Research Stations</Link>
           <Link to="/hazard">Hazard Intelligence</Link>
           <Link to="/cube">Cube AI Lab</Link>
@@ -197,6 +204,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/terra" element={<Dashboard />} />
+          <Route path="/labmcp" element={<LabMcp />} />
           <Route path="/stations" element={<ResearchStations />} />
           <Route path="/hazard" element={<Placeholder title="Hazard Intelligence" />} />
           <Route path="/cube" element={<CubeLab />} />

@@ -6,5 +6,5 @@ describe('webmcp detection', () => {
     document.modelContext = undefined
     expect(detectWebMcpAvailability()).toBe('WEBMCP_UNAVAILABLE')
   })
-  it('registers executable tool handlers when supported',async()=>{const registerTool=vi.fn();document.modelContext={registerTool};const result=await registerWebMcpTools();expect(result.registered).toBeGreaterThan(20);expect(registerTool.mock.calls[0]?.[0].execute).toBeTypeOf('function')})
+  it('registers executable tool handlers once per model context',async()=>{const registerTool=vi.fn();document.modelContext={registerTool};const result=await registerWebMcpTools();const repeated=await registerWebMcpTools();expect(result.registered).toBeGreaterThan(20);expect(repeated.registered).toBe(result.registered);expect(registerTool).toHaveBeenCalledTimes(result.registered);expect(registerTool.mock.calls[0]?.[0].execute).toBeTypeOf('function')})
 })
