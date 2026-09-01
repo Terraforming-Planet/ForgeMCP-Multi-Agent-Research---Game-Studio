@@ -43,6 +43,16 @@ export type HazardInvestigationInput = {
   referenceQuery?: string
 }
 
+export type HydrologyScreening = {
+  water_change_state: 'VISIBLE_WATER_REDUCTION_CANDIDATE' | 'VISIBLE_WATER_INCREASE_CANDIDATE' | 'NO_VISIBLE_CHANGE_ESTABLISHED' | 'INSUFFICIENT_EVIDENCE'
+  temporal_basis: string
+  inflow_outflow_status: 'VISIBLE_CANDIDATES' | 'NO_CANDIDATE_VISIBLE' | 'INSUFFICIENT_EVIDENCE'
+  candidate_features: string[]
+  main_and_tributary_context: string
+  required_checks: string[]
+  cause_status: 'NOT_ESTABLISHED_FROM_SUPPLIED_EVIDENCE'
+}
+
 export type WorkerAreaAnalysis = {
   service: string
   generated_at_utc: string
@@ -66,10 +76,16 @@ export type WorkerAreaAnalysis = {
     what_is_visible: string
     change_over_time: string
     water_assessment: string
+    hydrology_screening?: HydrologyScreening
     notable_features: string[]
     confidence: { level: 'low' | 'medium' | 'high'; reason: string }
     limitations: string[]
     recommended_next_step: string
+  }
+  analysis_protocol?: {
+    usage: string
+    training_3: { streamed_windows: number; research_region_count: number; environmental_ground_truth: false }
+    training_4: { unique_real_scientific_pairs: number; validation_pairs: number; steps: number; checkpoint_loaded_by_worker: false; environmental_ground_truth: false }
   }
   evidence_policy: string
 }
@@ -194,7 +210,11 @@ export type HazardInvestigationResult = {
     warning: string
   }
   observations: InvestigationObservation[]
-  screeningSignals: Array<{ hazardType: HazardType; matchedText: string; meaning: 'TEXT_SCREENING_CANDIDATE_NOT_CAUSAL_PROOF' }>
+  screeningSignals: Array<{
+    hazardType: HazardType
+    matchedText: string
+    meaning: 'TEXT_SCREENING_CANDIDATE_NOT_CAUSAL_PROOF' | 'STRUCTURED_HYDROLOGY_SCREENING_NOT_CAUSAL_PROOF'
+  }>
   hypotheses: CausalHypothesis[]
   alertDraft: PreliminaryAlertDraft
   recoveryOptions: RecoveryOption[]
@@ -438,15 +458,35 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-function screenSignals(analysis: WorkerAreaAnalysis | null, hazards: HazardType[]) {
+export function screenSignals(analysis: WorkerAreaAnalysis | null, hazards: HazardType[]) {
   if (!analysis || analysis.ai_visual_image_count < 1) return []
+  const hydrology = analysis.analysis.hydrology_screening
+  const signals: HazardInvestigationResult['screeningSignals'] = []
+  if (hazards.includes('water-loss') && hydrology?.water_change_state === 'VISIBLE_WATER_REDUCTION_CANDIDATE') {
+    signals.push({
+      hazardType: 'water-loss',
+      matchedText: `${hydrology.water_change_state}: ${hydrology.temporal_basis}`,
+      meaning: 'STRUCTURED_HYDROLOGY_SCREENING_NOT_CAUSAL_PROOF',
+    })
+  }
+  if (hazards.includes('flow-obstruction') && hydrology?.inflow_outflow_status === 'VISIBLE_CANDIDATES') {
+    const obstructionCandidate = hydrology.candidate_features.find(feature => SIGNAL_TERMS['flow-obstruction'].some(pattern => pattern.test(feature)))
+    if (obstructionCandidate) {
+      signals.push({
+        hazardType: 'flow-obstruction',
+        matchedText: obstructionCandidate,
+        meaning: 'STRUCTURED_HYDROLOGY_SCREENING_NOT_CAUSAL_PROOF',
+      })
+    }
+  }
   const sentences = [
     analysis.analysis.change_over_time,
     analysis.analysis.water_assessment,
     ...analysis.analysis.notable_features,
   ].flatMap(value => value.split(/(?<=[.!?])\s+/)).map(value => value.trim()).filter(Boolean)
-  const signals: HazardInvestigationResult['screeningSignals'] = []
   for (const hazardType of hazards) {
+    if (signals.some(signal => signal.hazardType === hazardType)) continue
+    if (hydrology && (hazardType === 'water-loss' || hazardType === 'flow-obstruction')) continue
     for (const sentence of sentences) {
       if (/\b(no evidence|not visible|cannot determine|insufficient evidence|unclear whether)\b/i.test(sentence)) continue
       if (SIGNAL_TERMS[hazardType].some(pattern => pattern.test(sentence))) {
@@ -555,8 +595,21 @@ export function evaluateGroundVerification(input: {
   }
 }
 
-function fieldChecks(hazards: HazardType[]) {
-  return [...new Set(hazards.flatMap(hazard => HYPOTHESIS_LIBRARY[hazard].flatMap(item => item.checks)))].slice(0, 18)
+function fieldChecks(hazards: HazardType[], hydrology?: HydrologyScreening, includeTest001Network = false) {
+  const waterNetworkChecks = hazards.some(hazard => WATER_HAZARDS.has(hazard)) ? [
+    'Zweryfikować w oficjalnej hydrografii przebieg cieku głównego, dopływów bocznych, dopływów i odpływów zbiornika.',
+    'Zbudować skierowaną sieć cieków, rowów, przepustów i urządzeń wodnych; kierunku przepływu nie wyznaczać wyłącznie z koloru obrazu.',
+    'Porównać przepływ lub stan wody powyżej i poniżej podejrzanych miejsc razem z opadem, PET i wodą gruntową.',
+  ] : []
+  const test001Checks = includeTest001Network ? [
+    'Dla TEST 001 sprawdzić oficjalną geometrię i aktualną drożność kandydata: Jezioro Kuchnia → Gardęga → Osa.',
+  ] : []
+  return [...new Set([
+    ...waterNetworkChecks,
+    ...test001Checks,
+    ...(hydrology?.required_checks ?? []),
+    ...hazards.flatMap(hazard => HYPOTHESIS_LIBRARY[hazard].flatMap(item => item.checks)),
+  ])].slice(0, 24)
 }
 
 function source(id: string, name: string, provider: string, state: SourceState, role: string, detail: string, sourceUrl: string): InvestigationSource {
@@ -638,6 +691,17 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
     `${TERRA_EVIDENCE_API_URL}/research/analyze`,
   ))
   sourceStatus.push(source(
+    'l4-water-protocol',
+    'Protokół wodny L4 — treningi #3 i #4',
+    'Terra public training evidence',
+    analysis?.analysis_protocol ? 'WARNING' : 'NOT_CONNECTED',
+    'Kontekst procedury i audytu porównań wieloletnich; nie jest środowiskową prawdą terenową ani uruchomionym checkpointem modelu.',
+    analysis?.analysis_protocol
+      ? `#3: ${analysis.analysis_protocol.training_3.streamed_windows} okien / ${analysis.analysis_protocol.training_3.research_region_count} regionów; #4: ${analysis.analysis_protocol.training_4.unique_real_scientific_pairs} par, ${analysis.analysis_protocol.training_4.validation_pairs} walidacyjnych, ${analysis.analysis_protocol.training_4.steps} kroków; checkpoint Worker: NIE.`
+      : 'Worker nie zwrócił kontekstu protokołu treningowego.',
+    `${TERRA_EVIDENCE_API_URL}/cases`,
+  ))
+  sourceStatus.push(source(
     'yearly-gallery',
     'Roczna galeria kontrolna',
     'USGS Landsat Collection 2 / NASA GIBS fallback',
@@ -697,6 +761,13 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
       { evidenceClass: 'OBSERVATION', statement: analysis.analysis.water_assessment, source: 'Terra Worker — ocena widocznej wody', limitation: 'Widoczność wody zależy od rozdzielczości, chmur, roślinności i sezonu.' },
       ...analysis.analysis.notable_features.map(statement => ({ evidenceClass: 'OBSERVATION' as const, statement, source: 'Terra Worker — cecha w obrazie', limitation: 'Cecha jest kandydatem obserwacyjnym, nie mechanizmem przyczynowym.' })),
     )
+    const hydrology = analysis.analysis.hydrology_screening
+    if (hydrology) {
+      observations.push(
+        { evidenceClass: 'OBSERVATION', statement: `Przesiew zmiany wody: ${hydrology.water_change_state}. ${hydrology.temporal_basis}`, source: 'Terra Worker — ustrukturyzowany przesiew hydrologiczny', limitation: 'Kandydat ze scen reprezentatywnych; nie jest pomiarem objętości ani dowodem przyczyny.' },
+        { evidenceClass: 'OBSERVATION', statement: `Dopływy/odpływy: ${hydrology.inflow_outflow_status}. ${hydrology.main_and_tributary_context}`, source: 'Terra Worker — ustrukturyzowany przesiew hydrologiczny', limitation: 'Widoczna geometria nie ustanawia kierunku ani drożności; wymaga oficjalnej hydrografii, DEM, pomiarów i kontroli terenowej.' },
+      )
+    }
   }
   observations.push({ evidenceClass: 'CATALOGUE_METADATA', statement: `${gallery.slots.filter(item => item.status === 'image').length} z ${gallery.requestedYears.length} żądanych lat ma oficjalny obraz podglądowy lub jawny fallback.`, source: 'USGS Landsat / NASA GIBS', limitation: 'Metadane i podgląd nie oznaczają automatycznego pomiaru zmiany.' })
   if (elevation.state === 'OBSERVATION') observations.push({ evidenceClass: 'OBSERVATION', statement: `Pobrano ${elevation.samples.length} próbek Copernicus DEM w profilu przez AOI.`, source: 'Open-Meteo / Copernicus DEM GLO-90', limitation: 'Próbki rastrowe nie są niwelacją terenową ani automatycznym kierunkiem przepływu.' })
@@ -720,7 +791,8 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
       ? 'OBSERVATION'
       : 'HYPOTHESIS'
   const alertDraft = draftPreliminaryAlert({ region: resolvedName, hazards: input.hazardTypes, hasRecordedAnomaly: recordedAnomaly, signals, visualImageCount: visuallyInspectedByModel })
-  const requiredFieldChecks = fieldChecks(input.hazardTypes)
+  const hydrology = analysis?.analysis.hydrology_screening
+  const requiredFieldChecks = fieldChecks(input.hazardTypes, hydrology, Boolean(test001Context))
   const verification: VerificationResult = {
     state: visuallyInspectedByModel || recordedAnomaly ? 'WARNING' : 'INSUFFICIENT_DATA',
     checks: [
@@ -728,6 +800,8 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
       `${gallery.requestedYears.length} lat żądano w galerii; ${gallery.slots.filter(item => item.status === 'image').length} ma obraz`,
       `${provenance.length} zapisów pochodzenia dołączono`,
       recordedAnomaly ? 'TEST 001 zachowano jako zapisaną anomalię bez automatycznej przyczyny' : 'Brak zapisanego wyniku terenowego dla tego AOI',
+      hydrology ? `Przesiew sieci wodnej: ${hydrology.inflow_outflow_status}; przyczyna: ${hydrology.cause_status}` : 'Worker nie zwrócił ustrukturyzowanego przesiewu sieci wodnej',
+      analysis?.analysis_protocol ? 'L4 #3/#4 użyto jako protokołu audytu; checkpoint L4 nie jest załadowany przez Worker' : 'Brak kontekstu protokołu L4 w odpowiedzi Worker',
       'Alert pozostaje szkicem i nie został wysłany',
     ],
     evidenceReferences: provenance.map(item => String(item.requestParameters.sourceUrl ?? item.dataset)),
@@ -741,13 +815,15 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
     timestamp: new Date().toISOString(),
     reason: classification === 'INSUFFICIENT_DATA' ? 'Nie wykonano wiarygodnej analizy wizualnej; wynik nie może ustanowić zagrożenia.' : 'Zebrano materiał obserwacyjny do hipotez, lecz bez niezależnej weryfikacji terenowej nie wolno ustanowić przyczyny ani VERIFIED_FINDING.',
   }
+  if (needsWaterAnalogues) toolsExecuted.push('screen_main_tributary_inflow_outflow_network')
   toolsExecuted.push('rank_causal_hypotheses', 'draft_preliminary_risk_alert', 'propose_recovery_options', 'verify_evidence')
 
   const agents: InvestigationAgent[] = [
     { name: 'Terra Agentic EO Coordinator', role: 'Rozdziela AOI, okres, źródła i bramki dowodowe.', tool: 'run_hazard_investigation', status: 'PASS', result: `${resolvedName} · ${input.startYear}–${input.endYear}` },
     { name: 'Copernicus/ESA Source Agent (nasz agent)', role: 'Korzysta ze źródeł Copernicus/ESA; nie jest agentem prowadzonym ani zatwierdzonym przez ESA.', tool: 'analyze_multiyear_imagery', status: sourceStatus.find(item => item.id === 'terra-area-analysis')?.state ?? 'NOT_CONNECTED', result: `${visuallyInspectedByModel} obrazów przeanalizowanych wizualnie.` },
     { name: 'Multi-year Imagery Analyst', role: 'Porównuje reprezentatywne sceny i oddziela je od lat katalogowych.', tool: 'retrieve_multiyear_imagery', status: sourceStatus.find(item => item.id === 'yearly-gallery')?.state ?? 'NOT_CONNECTED', result: `${gallery.slots.filter(item => item.status === 'image').length}/${gallery.requestedYears.length} slotów obrazowych.` },
-    { name: 'Terrain & Hydrology Analyst', role: 'Sprawdza kontekst rzeźby oraz hipotezy dopływu/odpływu.', tool: 'get_elevation_profile', status: sourceStatus.find(item => item.id === 'copernicus-dem')?.state ?? 'NOT_CONNECTED', result: elevation.state === 'OBSERVATION' ? `${elevation.samples.length} próbek DEM.` : 'Brak wiarygodnego profilu.' },
+    { name: 'Directed Water Network Analyst', role: 'Oddzielnie śledzi ciek główny, dopływy boczne, dopływy, odpływy, rowy, przepusty oraz kontrolę powyżej/poniżej.', tool: 'screen_main_tributary_inflow_outflow_network', status: !needsWaterAnalogues ? 'INSUFFICIENT_DATA' : hydrology ? (hydrology.inflow_outflow_status === 'VISIBLE_CANDIDATES' ? 'WARNING' : 'INSUFFICIENT_DATA') : 'NOT_CONNECTED', result: hydrology ? `${hydrology.water_change_state}; ${hydrology.inflow_outflow_status}; przyczyna nieustalona.` : 'Brak ustrukturyzowanego przesiewu hydrologicznego.' },
+    { name: 'Terrain & Hydrology Analyst', role: 'Sprawdza kontekst rzeźby bez wyznaczania kierunku przepływu wyłącznie z DEM.', tool: 'get_elevation_profile', status: sourceStatus.find(item => item.id === 'copernicus-dem')?.state ?? 'NOT_CONNECTED', result: elevation.state === 'OBSERVATION' ? `${elevation.samples.length} próbek DEM.` : 'Brak wiarygodnego profilu.' },
     { name: 'Hazard Specialist Agents', role: `Obsługują wybrane klasy: ${input.hazardTypes.map(item => HAZARD_LABELS[item]).join(', ')}.`, tool: 'rank_causal_hypotheses', status: classification === 'INSUFFICIENT_DATA' ? 'INSUFFICIENT_DATA' : 'WARNING', result: `${hypotheses.length} konkurencyjnych hipotez; żadna nie jest automatycznie przyczyną.` },
     { name: 'Global Analogue Scout', role: 'Szuka mechanizmów w odrębnych regionach bez przenoszenia przyczyny.', tool: 'find_global_water_analogues', status: needsWaterAnalogues ? (analogues ? 'WARNING' : 'NOT_CONNECTED') : 'INSUFFICIENT_DATA', result: needsWaterAnalogues ? `${analogues?.selectedCases.length ?? 0} analogii kontekstowych.` : 'Dla wybranej klasy nie użyto wodnego casebooka.' },
     { name: 'Evidence Verifier', role: 'Pilnuje klas OBSERVATION → ANOMALY → HYPOTHESIS → ALERT → VERIFIED FINDING.', tool: 'verify_evidence', status: verification.state === 'INSUFFICIENT_DATA' ? 'INSUFFICIENT_DATA' : 'WARNING', result: verification.reason },
@@ -799,6 +875,7 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
       'Aplikacja generuje hipotezy i szkice alertów; nie zastępuje służb, badań terenowych ani projektu technicznego.',
       'Wyraźny wzór w obrazie może silnie wspierać potrzebę kontroli, lecz sam nie dowodzi mechanizmu hydrologicznego, geotechnicznego ani sprawcy.',
       'Aplikacja niczego automatycznie nie publikuje, nie wysyła do urzędu i nie uruchamia robót.',
+      'Treningi L4 #3/#4 dostarczają protokół analizy i audytu, lecz ich metryki nie są dowodem zmiany środowiska; checkpoint L4 nie jest załadowany w Workerze.',
       '„Agent ESA” oznacza naszego agenta korzystającego ze źródeł Copernicus/ESA, a nie agenta obsługiwanego lub zatwierdzonego przez ESA.',
     ],
   }
