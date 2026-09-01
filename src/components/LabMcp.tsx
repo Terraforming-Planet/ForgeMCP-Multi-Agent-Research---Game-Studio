@@ -16,7 +16,13 @@ import {
   type ImageryDisplaySettings,
 } from '../integrations/terra/imageryDisplay'
 import { readLocalJson, writeLocalJson } from '../lib/storage'
-import { createResearchArchiveEntry, saveResearchArchiveEntry } from '../lib/researchArchive'
+import { compactReportText, mobilePreviewUrl } from '../lib/reportDisplay'
+import {
+  createResearchArchiveEntry,
+  readResearchArchive,
+  saveResearchArchiveEntry,
+  type ResearchArchiveStorage,
+} from '../lib/researchArchive'
 import { ImageryControls } from './ImageryControls'
 import { ProvenanceViewer } from './ProvenanceViewer'
 import { StatusBadge } from './StatusBadge'
@@ -125,6 +131,13 @@ function sourceState(value: string) {
   return value.replaceAll('_', ' ')
 }
 
+function archiveStatusMessage(storage: ResearchArchiveStorage, count: number, automatic: boolean) {
+  const action = automatic ? 'Badanie zapisano automatycznie.' : 'Zapis badania potwierdzony.'
+  if (storage === 'local') return `${action} Archiwum tej przeglądarki: ${count} ${count === 1 ? 'wpis' : 'wpisów'}.`
+  if (storage === 'session') return `${action} Zapis jest tymczasowy do zamknięcia karty, ponieważ trwała pamięć przeglądarki jest zablokowana.`
+  return `${action} Zapis działa tylko w tym otwartym widoku. Użyj „Eksportuj pełny JSON”, ponieważ przeglądarka blokuje pamięć.`
+}
+
 export function LabMcp() {
   const [form, setForm] = useState<FormState>(INITIAL_FORM)
   const [result, setResult] = useState<HazardInvestigationResult | null>(null)
@@ -134,7 +147,9 @@ export function LabMcp() {
   const [placeStatus, setPlaceStatus] = useState('')
   const [searchingPlace, setSearchingPlace] = useState(false)
   const [showExtended, setShowExtended] = useState(false)
+  const [showImagery, setShowImagery] = useState(false)
   const [archiveStatus, setArchiveStatus] = useState('')
+  const [archiveCount, setArchiveCount] = useState(() => readResearchArchive().length)
   const [imageDimensions, setImageDimensions] = useState<Record<string, string>>({})
   const [imageryDisplay, setImageryDisplay] = useState<ImageryDisplaySettings>(() => normalizeImageryDisplay(readLocalJson(IMAGERY_DISPLAY_KEY, DEFAULT_IMAGERY_DISPLAY)))
 
@@ -196,12 +211,25 @@ export function LabMcp() {
     }))
   }
 
+  const persistResearch = (researchResult: HazardInvestigationResult, automatic: boolean) => {
+    try {
+      const saved = saveResearchArchiveEntry(createResearchArchiveEntry(researchResult, imageryDisplay))
+      const confirmed = saved.entries.some(entry => entry.runId === researchResult.runId)
+      if (!confirmed) throw new Error('Przeglądarka nie potwierdziła zapisu badania.')
+      setArchiveCount(saved.entries.length)
+      setArchiveStatus(archiveStatusMessage(saved.storage, saved.entries.length, automatic))
+    } catch (reason) {
+      setArchiveStatus(reason instanceof Error ? reason.message : String(reason))
+    }
+  }
+
   const run = async () => {
     setRunning(true)
     setError('')
     setResult(null)
     setArchiveStatus('')
     setShowExtended(false)
+    setShowImagery(false)
     try {
       const latitude = form.latitude.trim() ? Number(form.latitude) : undefined
       const longitude = form.longitude.trim() ? Number(form.longitude) : undefined
@@ -221,6 +249,7 @@ export function LabMcp() {
       const response = await getTool('run_hazard_investigation')?.execute(input)
       if (!isToolEnvelope(response) || !isHazardResult(response.data)) throw new Error(isToolEnvelope(response) ? response.error ?? 'LabMCP nie zwrócił wyniku strukturalnego.' : 'Narzędzie WebMCP jest niedostępne.')
       setResult(response.data)
+      persistResearch(response.data, true)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
     } finally {
@@ -230,12 +259,7 @@ export function LabMcp() {
 
   const saveResearch = () => {
     if (!result) return
-    try {
-      saveResearchArchiveEntry(createResearchArchiveEntry(result, imageryDisplay))
-      setArchiveStatus('Skrót badania zapisano w archiwum tej przeglądarki.')
-    } catch (reason) {
-      setArchiveStatus(reason instanceof Error ? reason.message : String(reason))
-    }
+    persistResearch(result, false)
   }
 
   const exportJson = () => {
@@ -252,6 +276,16 @@ export function LabMcp() {
   const modelPreviewPool = result?.imagery.analysis?.analysis_images ?? result?.imagery.analysis?.preview_images ?? []
   const modelPreviewImages = result ? selectModelPreviewImages(modelPreviewPool, result.imagery.visuallyInspectedByModel) : []
   const displayFilter = imageryDisplayFilter(imageryDisplay)
+  const displayFilterStyle = imageryDisplay.preset === 'natural'
+    && imageryDisplay.brightness === 100
+    && imageryDisplay.contrast === 100
+    && imageryDisplay.saturation === 100
+    && imageryDisplay.hue === 0
+    ? undefined
+    : { filter: displayFilter }
+  const availableImageCount = result
+    ? modelPreviewImages.length + result.imagery.slots.filter(item => item.status === 'image').length
+    : 0
 
   return <>
     <section className="card lab-hero">
@@ -375,18 +409,19 @@ export function LabMcp() {
         <p className="lab-note"><b>Najważniejsza granica:</b> {result.imagery.warning}</p>
         <p><b>AOI:</b> {result.area.latitude.toFixed(6)}, {result.area.longitude.toFixed(6)} · promień {result.area.radiusKm} km · {result.period.startYear}–{result.period.endYear} · sezon: {result.period.season}.</p>
         <div className="toolbar lab-result-toolbar">
-          <button type="button" className="lab-primary" onClick={saveResearch}>Zapisz swoje badania</button>
+          <button type="button" className="lab-primary" onClick={saveResearch}>Zapisz ponownie</button>
           <button type="button" onClick={() => setShowExtended(value => !value)}>{showExtended ? 'Ukryj opis rozszerzony' : 'Pokaż opis rozszerzony'}</button>
-          <Link className="button-link" to="/research-archive">Archiwum badań</Link>
+          <button type="button" onClick={() => setShowImagery(value => !value)}>{showImagery ? 'Ukryj zdjęcia' : `Pokaż zdjęcia (${availableImageCount})`}</button>
+          <Link className="button-link" to="/research-archive">Archiwum badań ({archiveCount})</Link>
         </div>
-        {archiveStatus ? <p className="lab-place-status" role="status">{archiveStatus}</p> : null}
+        {archiveStatus ? <p className="lab-place-status" role="status" aria-live="polite">{archiveStatus}</p> : null}
       </section>
 
       <section className="card lab-compact-summary">
         <div className="lab-section-title"><div><p className="eyebrow">SKRÓT BADANIA</p><h2>Najważniejsze wnioski i hipotezy</h2></div><StatusBadge value="FIELD CHECK REQUIRED" /></div>
         <div className="grid two">
           <article><h3>Co wynika z materiału</h3><ul>
-            {(result.imagery.analysis ? [result.imagery.analysis.analysis.headline, result.imagery.analysis.analysis.change_over_time, result.imagery.analysis.analysis.water_assessment] : result.observations.slice(0, 3).map(item => item.statement)).map(item => <li key={item}>{item}</li>)}
+            {(result.imagery.analysis ? [result.imagery.analysis.analysis.headline, result.imagery.analysis.analysis.change_over_time, result.imagery.analysis.analysis.water_assessment] : result.observations.slice(0, 3).map(item => item.statement)).map(item => <li key={item}>{compactReportText(item)}</li>)}
           </ul></article>
           {result.imagery.analysis?.analysis.hydrology_screening ? <article><h3>Dopływy, odpływy i ubytek wody</h3>
             <p><b>Zmiana wody:</b> {result.imagery.analysis.analysis.hydrology_screening.water_change_state}</p>
@@ -397,7 +432,7 @@ export function LabMcp() {
         </div>
         <p><b>Weryfikacja:</b> {result.verification.reason}</p>
         {result.imagery.analysis?.analysis_protocol ? <p className="lab-note"><b>L4 #3/#4:</b> protokół porównań i audytu; checkpoint L4 nie jest załadowany w Workerze i trening nie jest prawdą terenową.</p> : null}
-        {result.imagery.analysis ? <p><b>Następny krok:</b> {result.imagery.analysis.analysis.recommended_next_step}</p> : null}
+        {result.imagery.analysis ? <p><b>Następny krok:</b> {compactReportText(result.imagery.analysis.analysis.recommended_next_step)}</p> : null}
       </section>
 
       {showExtended ? <>
@@ -429,34 +464,39 @@ export function LabMcp() {
         <ul>{result.imagery.analysis.analysis.limitations.map(item => <li key={item}>{item}</li>)}</ul>
       </section> : null}
 
-      <section className="card">
+      {showImagery ? <>
+      <section className="card lab-media-section">
         <ImageryControls value={imageryDisplay} onChange={setImageryDisplay} />
       </section>
 
-      {modelPreviewImages.length ? <section className="card lab-model-inputs">
+      {modelPreviewImages.length ? <section className="card lab-model-inputs lab-media-section">
         <div className="lab-section-title"><div><p className="eyebrow">ORYGINALNE WEJŚCIA ANALIZY</p><h2>Obrazy obejrzane przez model</h2></div><StatusBadge value={`${modelPreviewImages.length} INSPECTED`} /></div>
         <p className="lab-note">Model otrzymał oryginalne obrazy źródłowe. Suwaki powyżej zmieniają tylko Twój podgląd i nie zmieniają już wykonanej analizy.</p>
         <div className="lab-imagery-grid lab-model-imagery">
           {modelPreviewImages.map((image, index) => {
             const imageKey = `model-${image.date}-${index}`
             return <figure key={imageKey}>
-              <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={image.url} style={{ filter: displayFilter }} loading="lazy" alt={`Obraz wejściowy modelu ${image.date}`} onLoad={event => setImageDimensions(current => ({ ...current, [imageKey]: `${event.currentTarget.naturalWidth}×${event.currentTarget.naturalHeight}` }))} /></a>
-              <figcaption><b>{image.date}</b><span>{image.source}</span><small>NATURAL-COLOR RGB · AOI · plik {imageDimensions[imageKey] ?? 'sprawdzany'} · kliknij, aby powiększyć</small></figcaption>
+              <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Obraz wejściowy modelu ${image.date}`} onLoad={event => setImageDimensions(current => ({ ...current, [imageKey]: `${event.currentTarget.naturalWidth}×${event.currentTarget.naturalHeight}` }))} /></a>
+              <figcaption><b>{image.date}</b><span>{image.source}</span><small>NATURAL-COLOR RGB · lekki podgląd {imageDimensions[imageKey] ?? 'sprawdzany'} · kliknij, aby otworzyć oryginał</small></figcaption>
             </figure>
           })}
         </div>
       </section> : null}
 
-      <section className="card">
+      <section className="card lab-media-section">
         <div className="lab-section-title"><div><p className="eyebrow">MATERIAŁ KATALOGOWY</p><h2>Roczna galeria porównawcza</h2></div><StatusBadge value={`${result.imagery.missingYears} MISSING`} /></div>
         <p className="lab-note">Oddzielona od wejść modelu. Landsat może być miniaturą całej obróconej sceny, nawet 300×300 — wtedy służy tylko do wyboru źródła, a nie rozpoznawania małego stawu. Obraz nie jest już przycinany; kliknięcie otwiera oryginał.</p>
         <div className="lab-imagery-grid">
           {result.imagery.slots.map(slot => slot.status === 'image' && slot.image ? <figure key={slot.year}>
-            <a className="lab-image-link" href={slot.image.original_url} target="_blank" rel="noreferrer"><img src={slot.image.url} style={{ filter: displayFilter }} loading="lazy" alt={`Obraz satelitarny dla roku ${slot.year}`} onLoad={event => setImageDimensions(current => ({ ...current, [`gallery-${slot.year}`]: `${event.currentTarget.naturalWidth}×${event.currentTarget.naturalHeight}` }))} /></a>
-            <figcaption><b>{slot.year} · {slot.image.date}</b><span>{slot.image.source}</span><small>{slot.image.render_kind ?? 'CATALOGUE BROWSE'} · {slot.image.aoi_cropped === true ? 'wycinek AOI' : 'cała scena / status AOI niepotwierdzony'} · plik {imageDimensions[`gallery-${slot.year}`] ?? 'sprawdzany'}</small><small>chmury: {slot.image.cloud_cover === null ? 'brak metadanych' : `${slot.image.cloud_cover.toFixed(1)}%`} · {slot.image.scene_id ?? 'fallback bez ID sceny'}</small></figcaption>
+            <a className="lab-image-link" href={slot.image.original_url} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(slot.image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Obraz satelitarny dla roku ${slot.year}`} onLoad={event => setImageDimensions(current => ({ ...current, [`gallery-${slot.year}`]: `${event.currentTarget.naturalWidth}×${event.currentTarget.naturalHeight}` }))} /></a>
+            <figcaption><b>{slot.year} · {slot.image.date}</b><span>{slot.image.source}</span><small>{slot.image.render_kind ?? 'CATALOGUE BROWSE'} · {slot.image.aoi_cropped === true ? 'wycinek AOI' : 'cała scena / status AOI niepotwierdzony'} · lekki podgląd {imageDimensions[`gallery-${slot.year}`] ?? 'sprawdzany'}</small><small>chmury: {slot.image.cloud_cover === null ? 'brak metadanych' : `${slot.image.cloud_cover.toFixed(1)}%`} · {slot.image.scene_id ?? 'fallback bez ID sceny'}</small></figcaption>
           </figure> : <article className="lab-missing-year" key={slot.year}><b>{slot.year}</b><span>BRAK OBRAZU</span><small>{slot.reason}</small></article>)}
         </div>
       </section>
+      </> : <section className="card lab-media-gate">
+        <div><p className="eyebrow">ZDJĘCIA SATELITARNE</p><h2>Galeria wstrzymana dla stabilności telefonu</h2><p>Raport tekstowy i zapis archiwum są już dostępne. {availableImageCount} podglądów załaduje się dopiero po Twoim kliknięciu, aby Android nie wygasił całej strony.</p></div>
+        <button type="button" className="lab-primary" onClick={() => setShowImagery(true)}>Załaduj lekkie podglądy zdjęć</button>
+      </section>}
 
       {showExtended ? <>
       <section className="card">

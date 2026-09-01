@@ -8,6 +8,7 @@ import { CubeLab } from './components/CubeLab'
 import { LabMcp } from './components/LabMcp'
 import { ProvenanceViewer } from './components/ProvenanceViewer'
 import { ResearchArchive } from './components/ResearchArchive'
+import { ResearchErrorBoundary } from './components/ResearchErrorBoundary'
 import { ResearchStations } from './components/ResearchStations'
 import { StatusBadge } from './components/StatusBadge'
 import { Timeline } from './components/Timeline'
@@ -206,10 +207,10 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/terra" element={<Dashboard />} />
-          <Route path="/labmcp" element={<LabMcp />} />
-          <Route path="/research-archive" element={<ResearchArchive />} />
+          <Route path="/labmcp" element={<ResearchErrorBoundary><LabMcp /></ResearchErrorBoundary>} />
+          <Route path="/research-archive" element={<ResearchErrorBoundary><ResearchArchive /></ResearchErrorBoundary>} />
           <Route path="/stations" element={<ResearchStations />} />
-          <Route path="/hazard" element={<LabMcp />} />
+          <Route path="/hazard" element={<ResearchErrorBoundary><LabMcp /></ResearchErrorBoundary>} />
           <Route path="/cube" element={<CubeLab />} />
           <Route path="/selfplay" element={<Dashboard />} />
           <Route path="/creation" element={<Dashboard />} />

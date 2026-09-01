@@ -2,7 +2,15 @@ import type { HazardInvestigationResult } from '../integrations/terra/hazardInve
 import type { ImageryDisplaySettings } from '../integrations/terra/imageryDisplay'
 
 export const RESEARCH_ARCHIVE_KEY = 'forgemcp.terraResearchArchive.v1'
+export const RESEARCH_ARCHIVE_BACKUP_KEY = 'forgemcp.terraResearchArchive.backup.v1'
 export const RESEARCH_ARCHIVE_LIMIT = 50
+
+export type ResearchArchiveStorage = 'local' | 'session' | 'memory'
+
+export type ResearchArchiveSaveResult = {
+  entries: ResearchArchiveEntry[]
+  storage: ResearchArchiveStorage
+}
 
 export type ResearchArchiveEntry = {
   schemaVersion: '1.0'
@@ -36,6 +44,9 @@ export type ResearchArchiveEntry = {
 }
 
 const compact = (value: string, maximum = 360) => value.replace(/\s+/g, ' ').trim().slice(0, maximum)
+
+let memoryArchive: ResearchArchiveEntry[] = []
+let memoryFallbackActive = false
 
 export function createResearchArchiveEntry(result: HazardInvestigationResult, display: ImageryDisplaySettings): ResearchArchiveEntry {
   const visual = result.imagery.analysis?.analysis
@@ -190,25 +201,74 @@ function isArchiveEntry(value: unknown): value is ResearchArchiveEntry {
 }
 
 export function readResearchArchive(): ResearchArchiveEntry[] {
-  if (typeof localStorage === 'undefined') return []
+  const read = (storage: Storage | undefined, key: string) => {
+    if (!storage) return null
+    try {
+      const raw = storage.getItem(key)
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as unknown
+      return Array.isArray(parsed) ? parsed.filter(isArchiveEntry).slice(0, RESEARCH_ARCHIVE_LIMIT) : null
+    } catch {
+      return null
+    }
+  }
+
+  const local = read(typeof localStorage === 'undefined' ? undefined : localStorage, RESEARCH_ARCHIVE_KEY)
+  if (local !== null) {
+    memoryArchive = local
+    memoryFallbackActive = false
+    return local
+  }
+
+  const backup = read(typeof localStorage === 'undefined' ? undefined : localStorage, RESEARCH_ARCHIVE_BACKUP_KEY)
+  if (backup !== null) {
+    memoryArchive = backup
+    memoryFallbackActive = false
+    return backup
+  }
+
+  const session = read(typeof sessionStorage === 'undefined' ? undefined : sessionStorage, RESEARCH_ARCHIVE_KEY)
+  if (session !== null) {
+    memoryArchive = session
+    memoryFallbackActive = false
+    return session
+  }
+
+  return memoryFallbackActive ? memoryArchive : []
+}
+
+function writeAndVerify(storage: Storage, key: string, serialized: string, entryId: string) {
   try {
-    const raw = localStorage.getItem(RESEARCH_ARCHIVE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as unknown
-    return Array.isArray(parsed) ? parsed.filter(isArchiveEntry).slice(0, RESEARCH_ARCHIVE_LIMIT) : []
+    storage.setItem(key, serialized)
+    const persisted = storage.getItem(key)
+    if (!persisted) return false
+    const parsed = JSON.parse(persisted) as unknown
+    return Array.isArray(parsed) && parsed.some(item => isArchiveEntry(item) && item.id === entryId)
   } catch {
-    return []
+    return false
   }
 }
 
-export function saveResearchArchiveEntry(entry: ResearchArchiveEntry) {
-  if (typeof localStorage === 'undefined') throw new Error('Archiwum przeglądarki jest niedostępne.')
+export function saveResearchArchiveEntry(entry: ResearchArchiveEntry): ResearchArchiveSaveResult {
   if (!isArchiveEntry(entry)) throw new Error('Skrót badania jest niepełny i nie został zapisany.')
   const archive = [entry, ...readResearchArchive().filter(item => item.runId !== entry.runId)].slice(0, RESEARCH_ARCHIVE_LIMIT)
-  try {
-    localStorage.setItem(RESEARCH_ARCHIVE_KEY, JSON.stringify(archive))
-  } catch {
-    throw new Error('Nie udało się zapisać skrótu. Pamięć przeglądarki może być pełna lub zablokowana.')
+  const serialized = JSON.stringify(archive)
+  memoryArchive = archive
+
+  if (typeof localStorage !== 'undefined' && writeAndVerify(localStorage, RESEARCH_ARCHIVE_KEY, serialized, entry.id)) {
+    // A second compact copy lets the reader recover when one browser record is damaged.
+    writeAndVerify(localStorage, RESEARCH_ARCHIVE_BACKUP_KEY, serialized, entry.id)
+    memoryFallbackActive = false
+    return { entries: archive, storage: 'local' }
   }
-  return archive
+
+  if (typeof sessionStorage !== 'undefined' && writeAndVerify(sessionStorage, RESEARCH_ARCHIVE_KEY, serialized, entry.id)) {
+    memoryFallbackActive = false
+    return { entries: archive, storage: 'session' }
+  }
+
+  // The current SPA route can still show the record even when Android privacy
+  // settings block both browser stores. The UI explicitly labels this fallback.
+  memoryFallbackActive = true
+  return { entries: archive, storage: 'memory' }
 }

@@ -4,12 +4,24 @@
   background: #0b1020;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  overflow-x: clip;
+  background: #0b1020;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  min-height: 100svh;
 }
 
 a {
@@ -23,6 +35,9 @@ a:hover {
 
 .app-shell {
   min-height: 100vh;
+  min-height: 100svh;
+  min-width: 0;
+  max-width: 100%;
   display: grid;
   grid-template-rows: auto 1fr;
 }
@@ -44,9 +59,30 @@ nav {
 
 main {
   width: min(1200px, 94vw);
+  max-width: calc(100% - 1rem);
+  min-width: 0;
   margin: 1rem auto 2rem;
   display: grid;
   gap: 1rem;
+}
+
+main > *,
+.card,
+.grid,
+.grid > *,
+article,
+section {
+  min-width: 0;
+  max-width: 100%;
+}
+
+p,
+li,
+small,
+figcaption,
+td,
+th {
+  overflow-wrap: anywhere;
 }
 
 .card {
@@ -167,6 +203,8 @@ pre {
 
 .table-wrap {
   overflow: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
@@ -470,7 +508,7 @@ small {
   aspect-ratio: 1 / 1;
   object-fit: contain;
   background: #07101e;
-  transition: filter 160ms ease;
+  transition: none;
 }
 
 .lab-image-link {
@@ -478,6 +516,25 @@ small {
   overflow: hidden;
   background: #050a12;
   cursor: zoom-in;
+  contain: paint;
+}
+
+.lab-media-gate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-color: #315d78;
+  background: linear-gradient(135deg, #0d1731, #0b2638);
+}
+
+.lab-media-gate h2,
+.lab-media-gate p {
+  margin-top: 0.3rem;
+}
+
+.lab-error-fallback {
+  border-color: #ffa2a2;
 }
 
 .lab-model-imagery figure {
@@ -603,6 +660,20 @@ td ul {
 }
 
 @media (max-width: 700px) {
+  header {
+    position: static;
+  }
+
+  main {
+    width: calc(100% - 0.75rem);
+    max-width: calc(100% - 0.75rem);
+    margin-top: 0.5rem;
+  }
+
+  .card {
+    padding: 0.8rem;
+  }
+
   .lab-hero {
     flex-direction: column;
   }
@@ -634,6 +705,22 @@ td ul {
   }
 
   .lab-inline-field button {
+    width: 100%;
+  }
+
+  .grid.two,
+  .lab-evidence-list,
+  .lab-recovery-grid,
+  .lab-imagery-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lab-media-gate {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lab-media-gate button {
     width: 100%;
   }
 }
