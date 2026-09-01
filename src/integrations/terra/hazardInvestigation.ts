@@ -50,6 +50,7 @@ export type WorkerAreaAnalysis = {
   period: { start_date: string; end_date: string }
   depth: 'quick' | 'deep'
   preview_images: Array<{ date: string; source: string; url: string }>
+  analysis_images?: Array<{ date: string; source: string; url: string }>
   ai_visual_image_count: number
   visual_preflight_warnings?: string[]
   landsat_catalog: {
@@ -85,6 +86,11 @@ export type YearlyImageSlot = {
     scene_id: string | null
     cloud_cover: number | null
     cloud_preference_met: boolean
+    asset_kind?: 'FULL_RESOLUTION_BROWSE' | 'CATALOGUE_THUMBNAIL' | 'NASA_GIBS_AOI_FALLBACK'
+    render_kind?: 'CATALOGUE_BROWSE' | 'NATURAL_COLOR_RGB'
+    aoi_cropped?: boolean
+    analysis_eligible?: boolean
+    quality_note?: string
   }
   reason?: string
   warning?: string

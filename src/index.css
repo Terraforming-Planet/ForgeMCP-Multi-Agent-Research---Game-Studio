@@ -282,6 +282,49 @@ small {
   margin-top: 0.4rem;
 }
 
+.lab-inline-field {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.lab-inline-field input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.lab-inline-field button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.lab-place-status {
+  border: 1px solid #315d78;
+  border-radius: 9px;
+  padding: 0.65rem 0.75rem;
+  color: #c8edf9;
+  background: #0b2638;
+}
+
+.lab-location-results {
+  display: grid;
+  gap: 0.5rem;
+  margin: -0.25rem 0 1rem;
+}
+
+.lab-location-results button {
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+  width: 100%;
+}
+
+.lab-location-results small {
+  color: #b9c4dd;
+}
+
 .lab-span-two {
   grid-column: span 2;
 }
@@ -425,8 +468,89 @@ small {
   display: block;
   width: 100%;
   aspect-ratio: 1 / 1;
-  object-fit: cover;
+  object-fit: contain;
   background: #07101e;
+  transition: filter 160ms ease;
+}
+
+.lab-image-link {
+  display: block;
+  overflow: hidden;
+  background: #050a12;
+  cursor: zoom-in;
+}
+
+.lab-model-imagery figure {
+  border-color: #347899;
+}
+
+.lab-imagery-controls {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.lab-imagery-controls h2 {
+  margin: 0.25rem 0;
+}
+
+.lab-image-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.lab-image-presets button {
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+}
+
+.lab-image-presets button.active {
+  border-color: #67dcff;
+  background: #16415b;
+  box-shadow: 0 0 0 1px #67dcff33;
+}
+
+.lab-image-presets small {
+  color: #b9c4dd;
+}
+
+.lab-image-sliders {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.lab-image-sliders label {
+  color: #d5e2f4;
+  font-size: 0.85rem;
+}
+
+.lab-image-sliders output {
+  float: right;
+  color: #7be2ff;
+}
+
+.lab-image-sliders input {
+  margin: 0.55rem 0 0;
+  padding: 0;
+}
+
+.lab-archive-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.lab-archive-entry details {
+  margin: 0.8rem 0;
+  border-top: 1px solid #2d3d61;
+  padding-top: 0.8rem;
+}
+
+.lab-archive-entry summary {
+  cursor: pointer;
+  color: #9bdff5;
+  font-weight: 700;
 }
 
 .lab-imagery-grid figcaption,
@@ -494,12 +618,23 @@ td ul {
   .lab-form-grid,
   .lab-hazard-picker,
   .lab-mode-grid,
-  .lab-metrics {
+  .lab-metrics,
+  .lab-image-presets,
+  .lab-image-sliders {
     grid-template-columns: 1fr;
   }
 
   .lab-span-two {
     grid-column: span 1;
+  }
+
+  .lab-inline-field {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .lab-inline-field button {
+    width: 100%;
   }
 }
 

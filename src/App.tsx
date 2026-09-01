@@ -7,6 +7,7 @@ import { ChallengeEvidence } from './components/ChallengeEvidence'
 import { CubeLab } from './components/CubeLab'
 import { LabMcp } from './components/LabMcp'
 import { ProvenanceViewer } from './components/ProvenanceViewer'
+import { ResearchArchive } from './components/ResearchArchive'
 import { ResearchStations } from './components/ResearchStations'
 import { StatusBadge } from './components/StatusBadge'
 import { Timeline } from './components/Timeline'
@@ -60,7 +61,7 @@ function Dashboard() {
             <div className="toolbar">
               <button type="button" onClick={() => execute(request)}>Run coordinator</button>
               <button type="button" onClick={() => execute('Lake Chad')}>Demo: OBSERVE Terra</button>
-              <Link className="button-link" to="/labmcp">Open: LabMCP hazard investigation</Link>
+              <Link className="button-link" to="/labmcp">Open: LabTerra WebMCP</Link>
               <button type="button" onClick={() => execute('Run a deterministic Cube Chess self-play benchmark')}>Demo: LEARN &amp; COMPETE</button>
               <button type="button" onClick={() => execute("Improve the game's visual readability")}>Demo: CREATE + QA</button>
             </div>
@@ -180,7 +181,8 @@ function App() {
           <Link to="/">Home</Link>
           <Link to="/dashboard">Dashboard</Link>
           <Link to="/terra">Terra Research</Link>
-          <Link to="/labmcp">LabMCP</Link>
+          <Link to="/labmcp">LabTerra WebMCP</Link>
+          <Link to="/research-archive">Archiwum badań</Link>
           <Link to="/stations">Research Stations</Link>
           <Link to="/hazard">Hazard Intelligence</Link>
           <Link to="/cube">Cube AI Lab</Link>
@@ -205,6 +207,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/terra" element={<Dashboard />} />
           <Route path="/labmcp" element={<LabMcp />} />
+          <Route path="/research-archive" element={<ResearchArchive />} />
           <Route path="/stations" element={<ResearchStations />} />
           <Route path="/hazard" element={<LabMcp />} />
           <Route path="/cube" element={<CubeLab />} />

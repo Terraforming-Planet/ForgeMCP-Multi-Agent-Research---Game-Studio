@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   HAZARD_LABELS,
   HAZARD_TYPES,
@@ -7,15 +8,29 @@ import {
   type HazardType,
 } from '../integrations/terra/hazardInvestigation'
 import { getTool } from '../webmcp/registry'
+import {
+  DEFAULT_IMAGERY_DISPLAY,
+  imageryDisplayFilter,
+  normalizeImageryDisplay,
+  selectModelPreviewImages,
+  type ImageryDisplaySettings,
+} from '../integrations/terra/imageryDisplay'
+import { readLocalJson, writeLocalJson } from '../lib/storage'
+import { createResearchArchiveEntry, saveResearchArchiveEntry } from '../lib/researchArchive'
+import { ImageryControls } from './ImageryControls'
 import { ProvenanceViewer } from './ProvenanceViewer'
 import { StatusBadge } from './StatusBadge'
 
 type ToolEnvelope = {
   state?: string
-  data?: HazardInvestigationResult
+  data?: unknown
   error?: string
   verification?: string
 }
+
+type LocationMatch = { displayName: string; lat: number; lon: number }
+
+const IMAGERY_DISPLAY_KEY = 'forgemcp.labterra.imageryDisplay.v1'
 
 type FormState = {
   preset: 'test001' | 'vistula' | 'himalaya' | 'lake-chad' | 'custom'
@@ -90,6 +105,22 @@ function isToolEnvelope(value: unknown): value is ToolEnvelope {
   return typeof value === 'object' && value !== null
 }
 
+function isHazardResult(value: unknown): value is HazardInvestigationResult {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && 'runId' in value && 'imagery' in value)
+}
+
+function readLocationMatches(value: unknown): LocationMatch[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  const results = (value as { results?: unknown }).results
+  if (!Array.isArray(results)) return []
+  return results.filter((item): item is LocationMatch => Boolean(
+    item && typeof item === 'object' && !Array.isArray(item)
+    && typeof (item as LocationMatch).displayName === 'string'
+    && Number.isFinite((item as LocationMatch).lat)
+    && Number.isFinite((item as LocationMatch).lon),
+  ))
+}
+
 function sourceState(value: string) {
   return value.replaceAll('_', ' ')
 }
@@ -99,13 +130,61 @@ export function LabMcp() {
   const [result, setResult] = useState<HazardInvestigationResult | null>(null)
   const [error, setError] = useState('')
   const [running, setRunning] = useState(false)
+  const [placeMatches, setPlaceMatches] = useState<LocationMatch[]>([])
+  const [placeStatus, setPlaceStatus] = useState('')
+  const [searchingPlace, setSearchingPlace] = useState(false)
+  const [showExtended, setShowExtended] = useState(false)
+  const [archiveStatus, setArchiveStatus] = useState('')
+  const [imageDimensions, setImageDimensions] = useState<Record<string, string>>({})
+  const [imageryDisplay, setImageryDisplay] = useState<ImageryDisplaySettings>(() => normalizeImageryDisplay(readLocalJson(IMAGERY_DISPLAY_KEY, DEFAULT_IMAGERY_DISPLAY)))
+
+  useEffect(() => {
+    writeLocalJson(IMAGERY_DISPLAY_KEY, imageryDisplay)
+  }, [imageryDisplay])
 
   const selectPreset = (preset: FormState['preset']) => {
+    setPlaceMatches([])
+    setPlaceStatus('')
     if (preset === 'custom') {
       setForm(current => ({ ...current, preset, regionQuery: '', latitude: '', longitude: '', radiusKm: '25', hazards: ['water-loss'], timelineMode: 'representative' }))
       return
     }
     setForm({ preset, ...PRESETS[preset] })
+  }
+
+  const searchPlace = async () => {
+    const query = form.regionQuery.trim()
+    setPlaceMatches([])
+    setPlaceStatus('')
+    if (query.length < 2) {
+      setPlaceStatus('Wpisz co najmniej 2 znaki nazwy miejscowości lub regionu.')
+      return
+    }
+    setSearchingPlace(true)
+    try {
+      const response = await getTool('search_location')?.execute({ query })
+      if (!isToolEnvelope(response)) throw new Error('Wyszukiwarka WebMCP jest niedostępna.')
+      const matches = readLocationMatches(response.data)
+      if (!matches.length) throw new Error(response.error ?? 'Nie znaleziono miejsca. Doprecyzuj nazwę, region lub państwo.')
+      setPlaceMatches(matches)
+      setPlaceStatus(`Znaleziono ${matches.length} wyników. Wybierz właściwy obszar.`)
+    } catch (reason) {
+      setPlaceStatus(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setSearchingPlace(false)
+    }
+  }
+
+  const choosePlace = (match: LocationMatch) => {
+    setForm(current => ({
+      ...current,
+      preset: 'custom',
+      regionQuery: match.displayName,
+      latitude: match.lat.toFixed(6),
+      longitude: match.lon.toFixed(6),
+    }))
+    setPlaceMatches([])
+    setPlaceStatus(`Wybrano: ${match.displayName}`)
   }
 
   const toggleHazard = (hazard: HazardType) => {
@@ -121,6 +200,8 @@ export function LabMcp() {
     setRunning(true)
     setError('')
     setResult(null)
+    setArchiveStatus('')
+    setShowExtended(false)
     try {
       const latitude = form.latitude.trim() ? Number(form.latitude) : undefined
       const longitude = form.longitude.trim() ? Number(form.longitude) : undefined
@@ -138,12 +219,22 @@ export function LabMcp() {
         referenceQuery: form.preset === 'test001' ? 'Toruń' : undefined,
       }
       const response = await getTool('run_hazard_investigation')?.execute(input)
-      if (!isToolEnvelope(response) || !response.data) throw new Error(isToolEnvelope(response) ? response.error ?? 'LabMCP nie zwrócił wyniku strukturalnego.' : 'Narzędzie WebMCP jest niedostępne.')
+      if (!isToolEnvelope(response) || !isHazardResult(response.data)) throw new Error(isToolEnvelope(response) ? response.error ?? 'LabMCP nie zwrócił wyniku strukturalnego.' : 'Narzędzie WebMCP jest niedostępne.')
       setResult(response.data)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
     } finally {
       setRunning(false)
+    }
+  }
+
+  const saveResearch = () => {
+    if (!result) return
+    try {
+      saveResearchArchiveEntry(createResearchArchiveEntry(result, imageryDisplay))
+      setArchiveStatus('Skrót badania zapisano w archiwum tej przeglądarki.')
+    } catch (reason) {
+      setArchiveStatus(reason instanceof Error ? reason.message : String(reason))
     }
   }
 
@@ -158,10 +249,14 @@ export function LabMcp() {
     URL.revokeObjectURL(url)
   }
 
+  const modelPreviewPool = result?.imagery.analysis?.analysis_images ?? result?.imagery.analysis?.preview_images ?? []
+  const modelPreviewImages = result ? selectModelPreviewImages(modelPreviewPool, result.imagery.visuallyInspectedByModel) : []
+  const displayFilter = imageryDisplayFilter(imageryDisplay)
+
   return <>
     <section className="card lab-hero">
       <div>
-        <p className="eyebrow">LABMCP · TERRA · HIPOTETYCZNE ZAGROŻENIA I PRZYCZYNY</p>
+        <p className="eyebrow">LABTERRA WEBMCP · HIPOTETYCZNE ZAGROŻENIA I PRZYCZYNY</p>
         <h1>Laboratorium dochodzeń środowiskowych</h1>
         <p>Wskaż dowolny region i okres. Agenci pobiorą prawdziwe źródła satelitarne, oddzielą obrazy obejrzane przez model od samych metadanych, zbudują konkurencyjne hipotezy, szkic alertu i bezpieczne warianty naprawy lub regeneracji.</p>
       </div>
@@ -174,8 +269,8 @@ export function LabMcp() {
 
     <section className="card lab-builder" aria-label="Konfiguracja dochodzenia środowiskowego">
       <div className="lab-section-title">
-        <div><p className="eyebrow">WYBIERZ LUB WPISZ REGION</p><h2>Jedno kliknięcie uruchamia agentów i narzędzia MCP</h2></div>
-        <p className="lab-note">TEST 001 jest przykładem, nie ograniczeniem aplikacji. Dla własnego regionu możesz podać samą nazwę — wtedy pierwszy wynik Nominatim zostanie jawnie zapisany do raportu.</p>
+        <div><p className="eyebrow">LABTERRA WEBMCP</p><h2>Wyszukaj miejsce i ustaw zakres badania</h2></div>
+        <p className="lab-note">Współrzędne są opcjonalne. TEST 001 pozostaje gotowym przykładem.</p>
       </div>
 
       <div className="lab-form-grid">
@@ -188,9 +283,15 @@ export function LabMcp() {
             <option value="custom">Własny region</option>
           </select>
         </label>
-        <label className="lab-span-two">Nazwa regionu
-          <input aria-label="Nazwa regionu" value={form.regionQuery} onChange={event => setForm(current => ({ ...current, regionQuery: event.target.value, preset: 'custom', ...(current.preset === 'custom' ? {} : { latitude: '', longitude: '' }) }))} placeholder="np. dolina rzeki, gmina, jezioro, pasmo górskie" />
-        </label>
+        <div className="lab-span-two lab-location-search">
+          <label>Nazwa miejscowości lub regionu
+            <span className="lab-inline-field"><input aria-label="Nazwa regionu" value={form.regionQuery} onChange={event => {
+              setPlaceMatches([])
+              setPlaceStatus('')
+              setForm(current => ({ ...current, regionQuery: event.target.value, preset: 'custom', ...(current.preset === 'custom' ? {} : { latitude: '', longitude: '' }) }))
+            }} placeholder="np. Toruń, jezioro, dolina rzeki, pasmo górskie" /><button type="button" onClick={searchPlace} disabled={searchingPlace}>{searchingPlace ? 'Szukam…' : 'Szukaj miejsca'}</button></span>
+          </label>
+        </div>
         <label>Szerokość WGS84 (opcjonalna)
           <input aria-label="Szerokość geograficzna" inputMode="decimal" value={form.latitude} onChange={event => setForm(current => ({ ...current, latitude: event.target.value, preset: 'custom' }))} placeholder="np. 53.591400" />
         </label>
@@ -216,6 +317,11 @@ export function LabMcp() {
           </select>
         </label>
       </div>
+
+      {placeStatus ? <p className="lab-place-status" role="status">{placeStatus}</p> : null}
+      {placeMatches.length ? <div className="lab-location-results" role="list" aria-label="Wyniki wyszukiwania miejsca">
+        {placeMatches.map(match => <button type="button" role="listitem" key={`${match.lat}-${match.lon}-${match.displayName}`} onClick={() => choosePlace(match)}><b>{match.displayName}</b><small>{match.lat.toFixed(6)}, {match.lon.toFixed(6)}</small></button>)}
+      </div> : null}
 
       <fieldset className="lab-hazard-picker">
         <legend>Co agenci mają badać?</legend>
@@ -268,8 +374,27 @@ export function LabMcp() {
         </div>
         <p className="lab-note"><b>Najważniejsza granica:</b> {result.imagery.warning}</p>
         <p><b>AOI:</b> {result.area.latitude.toFixed(6)}, {result.area.longitude.toFixed(6)} · promień {result.area.radiusKm} km · {result.period.startYear}–{result.period.endYear} · sezon: {result.period.season}.</p>
+        <div className="toolbar lab-result-toolbar">
+          <button type="button" className="lab-primary" onClick={saveResearch}>Zapisz swoje badania</button>
+          <button type="button" onClick={() => setShowExtended(value => !value)}>{showExtended ? 'Ukryj opis rozszerzony' : 'Pokaż opis rozszerzony'}</button>
+          <Link className="button-link" to="/research-archive">Archiwum badań</Link>
+        </div>
+        {archiveStatus ? <p className="lab-place-status" role="status">{archiveStatus}</p> : null}
       </section>
 
+      <section className="card lab-compact-summary">
+        <div className="lab-section-title"><div><p className="eyebrow">SKRÓT BADANIA</p><h2>Najważniejsze wnioski i hipotezy</h2></div><StatusBadge value="FIELD CHECK REQUIRED" /></div>
+        <div className="grid two">
+          <article><h3>Co wynika z materiału</h3><ul>
+            {(result.imagery.analysis ? [result.imagery.analysis.analysis.headline, result.imagery.analysis.analysis.change_over_time, result.imagery.analysis.analysis.water_assessment] : result.observations.slice(0, 3).map(item => item.statement)).map(item => <li key={item}>{item}</li>)}
+          </ul></article>
+          <article><h3>Hipotezy do sprawdzenia</h3><ul>{result.hypotheses.slice(0, 3).map(item => <li key={item.id}><b>{HAZARD_LABELS[item.hazardType]}:</b> {item.hypothesis}</li>)}</ul></article>
+        </div>
+        <p><b>Weryfikacja:</b> {result.verification.reason}</p>
+        {result.imagery.analysis ? <p><b>Następny krok:</b> {result.imagery.analysis.analysis.recommended_next_step}</p> : null}
+      </section>
+
+      {showExtended ? <>
       <section className="card">
         <h2>Agenci i faktycznie wykonane narzędzia</h2>
         <div className="lab-agent-grid">
@@ -283,8 +408,9 @@ export function LabMcp() {
           {result.sourceStatus.map(item => <tr key={item.id}><td><b>{item.name}</b><br /><small>{item.provider}</small></td><td><StatusBadge value={item.state} /></td><td>{item.role}<br /><small>{item.detail}</small></td><td><a href={item.sourceUrl} target="_blank" rel="noreferrer">Otwórz ↗</a></td></tr>)}
         </tbody></table></div>
       </section>
+      </> : null}
 
-      {result.imagery.analysis ? <section className="card">
+      {showExtended && result.imagery.analysis ? <section className="card">
         <div className="lab-section-title"><div><p className="eyebrow">ANALIZA WIZUALNA REPREZENTATYWNYCH SCEN</p><h2>{result.imagery.analysis.analysis.headline}</h2></div><StatusBadge value={`MODEL ${result.imagery.analysis.analysis.confidence.level}`} /></div>
         <div className="grid two">
           <article><h3>Co widać</h3><p>{result.imagery.analysis.analysis.what_is_visible}</p></article>
@@ -297,16 +423,35 @@ export function LabMcp() {
       </section> : null}
 
       <section className="card">
-        <div className="lab-section-title"><div><p className="eyebrow">MATERIAŁ ŹRÓDŁOWY</p><h2>Galeria wieloletnia</h2></div><StatusBadge value={`${result.imagery.missingYears} MISSING`} /></div>
-        <p className="lab-note">Karta z obrazem oznacza oficjalny podgląd Landsat albo jawnie opisany fallback NASA GIBS. Nie twierdzimy, że model obejrzał wszystkie te karty.</p>
+        <ImageryControls value={imageryDisplay} onChange={setImageryDisplay} />
+      </section>
+
+      {modelPreviewImages.length ? <section className="card lab-model-inputs">
+        <div className="lab-section-title"><div><p className="eyebrow">ORYGINALNE WEJŚCIA ANALIZY</p><h2>Obrazy obejrzane przez model</h2></div><StatusBadge value={`${modelPreviewImages.length} INSPECTED`} /></div>
+        <p className="lab-note">Model otrzymał oryginalne obrazy źródłowe. Suwaki powyżej zmieniają tylko Twój podgląd i nie zmieniają już wykonanej analizy.</p>
+        <div className="lab-imagery-grid lab-model-imagery">
+          {modelPreviewImages.map((image, index) => {
+            const imageKey = `model-${image.date}-${index}`
+            return <figure key={imageKey}>
+              <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={image.url} style={{ filter: displayFilter }} loading="lazy" alt={`Obraz wejściowy modelu ${image.date}`} onLoad={event => setImageDimensions(current => ({ ...current, [imageKey]: `${event.currentTarget.naturalWidth}×${event.currentTarget.naturalHeight}` }))} /></a>
+              <figcaption><b>{image.date}</b><span>{image.source}</span><small>NATURAL-COLOR RGB · AOI · plik {imageDimensions[imageKey] ?? 'sprawdzany'} · kliknij, aby powiększyć</small></figcaption>
+            </figure>
+          })}
+        </div>
+      </section> : null}
+
+      <section className="card">
+        <div className="lab-section-title"><div><p className="eyebrow">MATERIAŁ KATALOGOWY</p><h2>Roczna galeria porównawcza</h2></div><StatusBadge value={`${result.imagery.missingYears} MISSING`} /></div>
+        <p className="lab-note">Oddzielona od wejść modelu. Landsat może być miniaturą całej obróconej sceny, nawet 300×300 — wtedy służy tylko do wyboru źródła, a nie rozpoznawania małego stawu. Obraz nie jest już przycinany; kliknięcie otwiera oryginał.</p>
         <div className="lab-imagery-grid">
           {result.imagery.slots.map(slot => slot.status === 'image' && slot.image ? <figure key={slot.year}>
-            <a href={slot.image.original_url} target="_blank" rel="noreferrer"><img src={slot.image.url} loading="lazy" alt={`Obraz satelitarny dla roku ${slot.year}`} /></a>
-            <figcaption><b>{slot.year} · {slot.image.date}</b><span>{slot.image.source}</span><small>chmury: {slot.image.cloud_cover === null ? 'brak metadanych' : `${slot.image.cloud_cover.toFixed(1)}%`} · {slot.image.scene_id ?? 'fallback bez ID sceny'}</small></figcaption>
+            <a className="lab-image-link" href={slot.image.original_url} target="_blank" rel="noreferrer"><img src={slot.image.url} style={{ filter: displayFilter }} loading="lazy" alt={`Obraz satelitarny dla roku ${slot.year}`} onLoad={event => setImageDimensions(current => ({ ...current, [`gallery-${slot.year}`]: `${event.currentTarget.naturalWidth}×${event.currentTarget.naturalHeight}` }))} /></a>
+            <figcaption><b>{slot.year} · {slot.image.date}</b><span>{slot.image.source}</span><small>{slot.image.render_kind ?? 'CATALOGUE BROWSE'} · {slot.image.aoi_cropped === true ? 'wycinek AOI' : 'cała scena / status AOI niepotwierdzony'} · plik {imageDimensions[`gallery-${slot.year}`] ?? 'sprawdzany'}</small><small>chmury: {slot.image.cloud_cover === null ? 'brak metadanych' : `${slot.image.cloud_cover.toFixed(1)}%`} · {slot.image.scene_id ?? 'fallback bez ID sceny'}</small></figcaption>
           </figure> : <article className="lab-missing-year" key={slot.year}><b>{slot.year}</b><span>BRAK OBRAZU</span><small>{slot.reason}</small></article>)}
         </div>
       </section>
 
+      {showExtended ? <>
       <section className="card">
         <h2>Obserwacje, anomalie i kontekst — bez mieszania klas dowodu</h2>
         <div className="lab-evidence-list">
@@ -372,6 +517,7 @@ export function LabMcp() {
       </section>
 
       <ProvenanceViewer records={result.provenance} />
+      </> : null}
     </> : null}
   </>
 }
