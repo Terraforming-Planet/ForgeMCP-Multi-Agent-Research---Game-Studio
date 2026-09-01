@@ -388,9 +388,15 @@ export function LabMcp() {
           <article><h3>Co wynika z materiału</h3><ul>
             {(result.imagery.analysis ? [result.imagery.analysis.analysis.headline, result.imagery.analysis.analysis.change_over_time, result.imagery.analysis.analysis.water_assessment] : result.observations.slice(0, 3).map(item => item.statement)).map(item => <li key={item}>{item}</li>)}
           </ul></article>
+          {result.imagery.analysis?.analysis.hydrology_screening ? <article><h3>Dopływy, odpływy i ubytek wody</h3>
+            <p><b>Zmiana wody:</b> {result.imagery.analysis.analysis.hydrology_screening.water_change_state}</p>
+            <p><b>Sieć wodna:</b> {result.imagery.analysis.analysis.hydrology_screening.inflow_outflow_status}</p>
+            <p><b>Przyczyna:</b> nieustalona — wymaga pomiarów i kontroli terenowej.</p>
+          </article> : null}
           <article><h3>Hipotezy do sprawdzenia</h3><ul>{result.hypotheses.slice(0, 3).map(item => <li key={item.id}><b>{HAZARD_LABELS[item.hazardType]}:</b> {item.hypothesis}</li>)}</ul></article>
         </div>
         <p><b>Weryfikacja:</b> {result.verification.reason}</p>
+        {result.imagery.analysis?.analysis_protocol ? <p className="lab-note"><b>L4 #3/#4:</b> protokół porównań i audytu; checkpoint L4 nie jest załadowany w Workerze i trening nie jest prawdą terenową.</p> : null}
         {result.imagery.analysis ? <p><b>Następny krok:</b> {result.imagery.analysis.analysis.recommended_next_step}</p> : null}
       </section>
 
@@ -416,6 +422,7 @@ export function LabMcp() {
           <article><h3>Co widać</h3><p>{result.imagery.analysis.analysis.what_is_visible}</p></article>
           <article><h3>Zmiana w czasie</h3><p>{result.imagery.analysis.analysis.change_over_time}</p></article>
           <article><h3>Ocena widocznej wody</h3><p>{result.imagery.analysis.analysis.water_assessment}</p></article>
+          {result.imagery.analysis.analysis.hydrology_screening ? <article><h3>Sieć główna i dopływy boczne</h3><p>{result.imagery.analysis.analysis.hydrology_screening.main_and_tributary_context}</p><ul>{result.imagery.analysis.analysis.hydrology_screening.candidate_features.map(item => <li key={item}>{item}</li>)}</ul></article> : null}
           <article><h3>Jakościowa ocena modelu — niekalibrowana</h3><p>{result.imagery.analysis.analysis.confidence.reason}</p></article>
         </div>
         <p><b>Następny krok wskazany przez analizę:</b> {result.imagery.analysis.analysis.recommended_next_step}</p>
@@ -499,6 +506,9 @@ export function LabMcp() {
           <article><StatusBadge value="ANOMALY" /><h3>Co jest potwierdzone w zapisanym materiale</h3><p>Historyczny trwały obrys widocznego stawu: <b>{result.test001Context.evidence.recordedResult.historicalPersistentFootprintM2.toLocaleString('pl-PL')} m² ({result.test001Context.evidence.recordedResult.historicalPersistentFootprintHa.toFixed(4)} ha)</b>.</p><p>Dokładna powierzchnia wody w 2026, procent utraty i przyczyna: <b>nieopublikowane / niepotwierdzone</b>.</p></article>
           <article><StatusBadge value={result.test001Context.reference.status} /><h3>Baza „Toruń”</h3><p>{result.test001Context.reference.comparisonFinding}</p><p><b>Potrzebne:</b> {result.test001Context.reference.requiredHumanAction}</p></article>
         </div>
+        {showExtended ? <details><summary>Źródła o cieku głównym, dopływach i odpływach</summary><ul>
+          {result.test001Context.connectivity.map(item => <li key={`${item.sourceUrl}-${item.contentLocator}`}><b>{item.classification}:</b> {item.statement} <a href={item.sourceUrl} target="_blank" rel="noreferrer">źródło ↗</a><br /><small>{item.limitation}</small></li>)}
+        </ul></details> : null}
       </section> : null}
 
       <section className="card">

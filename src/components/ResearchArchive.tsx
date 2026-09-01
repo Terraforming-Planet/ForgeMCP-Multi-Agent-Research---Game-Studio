@@ -32,6 +32,13 @@ export function ResearchArchive() {
         <div className="lab-section-title"><div><p className="eyebrow">{new Date(entry.savedAt).toLocaleString('pl-PL')}</p><h2>{entry.title}</h2></div><div className="lab-status-stack"><StatusBadge value={entry.classification} /><StatusBadge value={entry.verificationState} /></div></div>
         <p><b>AOI:</b> promień {entry.area.radiusKm} km · {entry.period.startYear}–{entry.period.endYear} · {entry.period.season}</p>
         <ul>{entry.shortSummary.map((item, index) => <li key={`${entry.id}-summary-${index}`}>{item}</li>)}</ul>
+        {entry.hydrology ? <details><summary>Dopływy, odpływy i ubytek wody</summary>
+          <p><b>Zmiana wody:</b> {entry.hydrology.waterChangeState}</p>
+          <p><b>Dopływy/odpływy:</b> {entry.hydrology.inflowOutflowStatus}</p>
+          <p>{entry.hydrology.mainAndTributaryContext}</p>
+          {entry.hydrology.candidateFeatures.length ? <ul>{entry.hydrology.candidateFeatures.map(item => <li key={item}>{item}</li>)}</ul> : null}
+          <p><b>Przyczyna:</b> {entry.hydrology.causeStatus}</p>
+        </details> : null}
         <details><summary>Hipotezy i wymagane sprawdzenia</summary>
           {entry.hypotheses.map(item => <section key={`${entry.id}-${item.id}`}><h3>{HAZARD_LABELS[item.hazardType as HazardType] ?? item.hazardType}</h3><p><StatusBadge value={item.status} /> {item.hypothesis}</p><ul>{item.requiredChecks.map(check => <li key={check}>{check}</li>)}</ul></section>)}
         </details>

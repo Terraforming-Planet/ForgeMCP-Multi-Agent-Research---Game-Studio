@@ -19,6 +19,14 @@ export type ResearchArchiveEntry = {
   shortSummary: string[]
   observations: Array<{ evidenceClass: string; statement: string; limitation: string }>
   hypotheses: Array<{ id: string; hazardType: string; hypothesis: string; status: string; requiredChecks: string[] }>
+  hydrology?: {
+    waterChangeState: string
+    temporalBasis: string
+    inflowOutflowStatus: string
+    candidateFeatures: string[]
+    mainAndTributaryContext: string
+    causeStatus: string
+  }
   imagery: { inspectedByModel: number; galleryImages: number; requestedYears: number; missingYears: number }
   sources: Array<{ name: string; provider: string; state: string; sourceUrl: string }>
   limitations: string[]
@@ -31,12 +39,14 @@ const compact = (value: string, maximum = 360) => value.replace(/\s+/g, ' ').tri
 
 export function createResearchArchiveEntry(result: HazardInvestigationResult, display: ImageryDisplaySettings): ResearchArchiveEntry {
   const visual = result.imagery.analysis?.analysis
+  const hydrology = visual?.hydrology_screening
   const shortSummary = [
     visual?.headline,
     visual?.change_over_time,
     visual?.water_assessment,
+    hydrology ? `Woda: ${hydrology.water_change_state}; dopływy/odpływy: ${hydrology.inflow_outflow_status}; przyczyna nieustalona.` : undefined,
     result.verification.reason,
-  ].filter((value): value is string => Boolean(value?.trim())).map(value => compact(value)).slice(0, 4)
+  ].filter((value): value is string => Boolean(value?.trim())).map(value => compact(value)).slice(0, 5)
 
   if (!shortSummary.length) {
     shortSummary.push(...result.observations.slice(0, 3).map(item => compact(item.statement)))
@@ -68,6 +78,14 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
       status: item.status,
       requiredChecks: item.requiredChecks.slice(0, 4).map(check => compact(check, 220)),
     })),
+    hydrology: hydrology ? {
+      waterChangeState: hydrology.water_change_state,
+      temporalBasis: compact(hydrology.temporal_basis),
+      inflowOutflowStatus: hydrology.inflow_outflow_status,
+      candidateFeatures: hydrology.candidate_features.slice(0, 8).map(item => compact(item, 220)),
+      mainAndTributaryContext: compact(hydrology.main_and_tributary_context),
+      causeStatus: hydrology.cause_status,
+    } : undefined,
     imagery: {
       inspectedByModel: result.imagery.visuallyInspectedByModel,
       galleryImages: result.imagery.slots.filter(item => item.status === 'image').length,
@@ -82,17 +100,100 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function isFiniteNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isStringArray(value: unknown) {
+  return Array.isArray(value) && value.every(item => typeof item === 'string')
+}
+
 function isArchiveEntry(value: unknown): value is ResearchArchiveEntry {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
-  const entry = value as Partial<ResearchArchiveEntry>
-  return entry.schemaVersion === '1.0' && typeof entry.runId === 'string' && typeof entry.savedAt === 'string' && Array.isArray(entry.shortSummary) && Array.isArray(entry.hypotheses)
+  if (!isRecord(value)) return false
+  const area = value.area
+  const period = value.period
+  const imagery = value.imagery
+  const display = value.displaySettings
+  if (!isRecord(area) || !isRecord(period) || !isRecord(imagery) || !isRecord(display)) return false
+
+  const observationsValid = Array.isArray(value.observations) && value.observations.every(item => (
+    isRecord(item)
+    && typeof item.evidenceClass === 'string'
+    && typeof item.statement === 'string'
+    && typeof item.limitation === 'string'
+  ))
+  const hypothesesValid = Array.isArray(value.hypotheses) && value.hypotheses.every(item => (
+    isRecord(item)
+    && typeof item.id === 'string'
+    && typeof item.hazardType === 'string'
+    && typeof item.hypothesis === 'string'
+    && typeof item.status === 'string'
+    && isStringArray(item.requiredChecks)
+  ))
+  const sourcesValid = Array.isArray(value.sources) && value.sources.every(item => (
+    isRecord(item)
+    && typeof item.name === 'string'
+    && typeof item.provider === 'string'
+    && typeof item.state === 'string'
+    && typeof item.sourceUrl === 'string'
+  ))
+  const hydrologyValid = value.hydrology === undefined || (
+    isRecord(value.hydrology)
+    && typeof value.hydrology.waterChangeState === 'string'
+    && typeof value.hydrology.temporalBasis === 'string'
+    && typeof value.hydrology.inflowOutflowStatus === 'string'
+    && isStringArray(value.hydrology.candidateFeatures)
+    && typeof value.hydrology.mainAndTributaryContext === 'string'
+    && typeof value.hydrology.causeStatus === 'string'
+  )
+
+  return value.schemaVersion === '1.0'
+    && typeof value.id === 'string'
+    && typeof value.runId === 'string'
+    && typeof value.savedAt === 'string'
+    && Number.isFinite(Date.parse(value.savedAt))
+    && typeof value.title === 'string'
+    && typeof value.classification === 'string'
+    && typeof value.signalState === 'string'
+    && typeof value.verificationState === 'string'
+    && typeof area.resolvedName === 'string'
+    && isFiniteNumber(area.latitude)
+    && isFiniteNumber(area.longitude)
+    && isFiniteNumber(area.radiusKm)
+    && isFiniteNumber(period.startYear)
+    && isFiniteNumber(period.endYear)
+    && typeof period.season === 'string'
+    && typeof period.timelineMode === 'string'
+    && isStringArray(value.hazards)
+    && isStringArray(value.shortSummary)
+    && observationsValid
+    && hypothesesValid
+    && hydrologyValid
+    && isFiniteNumber(imagery.inspectedByModel)
+    && isFiniteNumber(imagery.galleryImages)
+    && isFiniteNumber(imagery.requestedYears)
+    && isFiniteNumber(imagery.missingYears)
+    && sourcesValid
+    && isStringArray(value.limitations)
+    && typeof display.preset === 'string'
+    && isFiniteNumber(display.brightness)
+    && isFiniteNumber(display.contrast)
+    && isFiniteNumber(display.saturation)
+    && isFiniteNumber(display.hue)
+    && display.evidenceMeaning === 'DISPLAY_ONLY_NOT_MODEL_INPUT'
+    && value.learningStatus === 'CURATION_REQUIRED_NOT_AUTOMATIC_TRAINING'
+    && value.humanDecisionRequired === true
 }
 
 export function readResearchArchive(): ResearchArchiveEntry[] {
   if (typeof localStorage === 'undefined') return []
-  const raw = localStorage.getItem(RESEARCH_ARCHIVE_KEY)
-  if (!raw) return []
   try {
+    const raw = localStorage.getItem(RESEARCH_ARCHIVE_KEY)
+    if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     return Array.isArray(parsed) ? parsed.filter(isArchiveEntry).slice(0, RESEARCH_ARCHIVE_LIMIT) : []
   } catch {
@@ -102,6 +203,7 @@ export function readResearchArchive(): ResearchArchiveEntry[] {
 
 export function saveResearchArchiveEntry(entry: ResearchArchiveEntry) {
   if (typeof localStorage === 'undefined') throw new Error('Archiwum przeglądarki jest niedostępne.')
+  if (!isArchiveEntry(entry)) throw new Error('Skrót badania jest niepełny i nie został zapisany.')
   const archive = [entry, ...readResearchArchive().filter(item => item.runId !== entry.runId)].slice(0, RESEARCH_ARCHIVE_LIMIT)
   try {
     localStorage.setItem(RESEARCH_ARCHIVE_KEY, JSON.stringify(archive))

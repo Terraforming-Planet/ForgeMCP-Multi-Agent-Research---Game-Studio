@@ -22,7 +22,20 @@ function result(runId: string): HazardInvestigationResult {
       requestedYears: [2000, 2026],
       missingYears: 1,
       analysis: {
-        analysis: { headline: 'Visible change candidate', change_over_time: 'Water-like pixels appear reduced.', water_assessment: 'Requires NDWI and field checks.' },
+        analysis: {
+          headline: 'Visible change candidate',
+          change_over_time: 'Water-like pixels appear reduced.',
+          water_assessment: 'Requires NDWI and field checks.',
+          hydrology_screening: {
+            water_change_state: 'VISIBLE_WATER_REDUCTION_CANDIDATE',
+            temporal_basis: 'Matched representative scenes show less visible open water.',
+            inflow_outflow_status: 'VISIBLE_CANDIDATES',
+            candidate_features: ['possible inlet channel'],
+            main_and_tributary_context: 'The main waterbody is visible; flow direction is not established.',
+            required_checks: ['Verify official hydrography.'],
+            cause_status: 'NOT_ESTABLISHED_FROM_SUPPLIED_EVIDENCE',
+          },
+        },
       },
     },
     verification: { state: 'WARNING', reason: 'Field verification required.' },
@@ -45,11 +58,25 @@ describe('research archive', () => {
     expect(archive).toHaveLength(1)
     expect(archive[0].learningStatus).toBe('CURATION_REQUIRED_NOT_AUTOMATIC_TRAINING')
     expect(archive[0].displaySettings.evidenceMeaning).toBe('DISPLAY_ONLY_NOT_MODEL_INPUT')
+    expect(archive[0].hydrology?.waterChangeState).toBe('VISIBLE_WATER_REDUCTION_CANDIDATE')
+    expect(archive[0].hydrology?.causeStatus).toBe('NOT_ESTABLISHED_FROM_SUPPLIED_EVIDENCE')
     expect(JSON.stringify(archive[0])).not.toContain('image.jpg')
   })
 
   it('fails closed on malformed browser data', () => {
     localStorage.setItem(RESEARCH_ARCHIVE_KEY, '{not-json')
+    expect(readResearchArchive()).toEqual([])
+  })
+
+  it('rejects a partial legacy record that would crash the archive view', () => {
+    localStorage.setItem(RESEARCH_ARCHIVE_KEY, JSON.stringify([{
+      schemaVersion: '1.0',
+      runId: 'partial-run',
+      savedAt: '2026-09-01T20:00:00Z',
+      shortSummary: ['incomplete'],
+      hypotheses: [],
+    }]))
+
     expect(readResearchArchive()).toEqual([])
   })
 })
