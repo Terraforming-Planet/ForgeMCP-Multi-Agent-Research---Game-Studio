@@ -19,7 +19,8 @@ describe('dashboard render', () => {
         <App />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('heading', { name: 'Forest Pond near Lake Kuchnia' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Run TEST 001 through WebMCP handler' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Laboratorium dochodzeń środowiskowych' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Uruchom agentów i analizę wieloletnią' })).toBeTruthy()
+    expect(screen.getByRole('combobox', { name: 'Preset badawczy' })).toBeTruthy()
   })
 })

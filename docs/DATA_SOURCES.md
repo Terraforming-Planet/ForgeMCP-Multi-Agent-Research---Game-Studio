@@ -16,6 +16,17 @@
 - **Provenance:** Provider, dataset, operation, parameters, timestamp
 - **Attribution/Licensing:** Third-party provider data; ForgeMCP does not own source data
 
+### Terra public evidence Worker
+- **Endpoint:** `https://terra-observation-evidence-explainer.xodobrox.workers.dev`
+- **Purpose:** Safe server-side access to representative multi-year image analysis and a year-by-year browse gallery
+- **Visual sources:** NASA GIBS MODIS/VIIRS and, when available, Copernicus Data Space Sentinel-2 WMS
+- **Catalogue/gallery source:** USGS Landsat Collection 2 Surface Reflectance STAC and official browse assets; NASA GIBS is a clearly labelled fallback
+- **Truth boundary:** Only `ai_visual_image_count` images were inspected by the model. Annual gallery images and Landsat catalogue matches remain source material/metadata unless separately inspected.
+
+### Copernicus DEM GLO-90 through Open-Meteo
+- **Purpose:** Five raster elevation samples for terrain context
+- **Truth boundary:** These are raster samples, not surveyed elevations, flow direction, terrain-change measurements or geotechnical ground truth.
+
 ### Terra TEST 001 public evidence
 - **Provider:** Terraforming Planet public evidence repository
 - **Purpose:** Recorded forest-pond state-change measurement and separately classified author field report
@@ -40,7 +51,5 @@
 These references are labelled `CURATED_SOURCE_REFERENCE`. Their contents are not presented as live-revalidated observations.
 
 ## Referenced (not directly integrated yet)
-- NASA GIBS
-- ESA / Copernicus / CDSE
-- USGS / Landsat
-- NOAA
+- NOAA products beyond imagery distributed through NASA GIBS
+- Full-resolution credential-gated mission products not exposed through the public Worker
