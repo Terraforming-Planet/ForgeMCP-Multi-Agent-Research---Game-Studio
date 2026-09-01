@@ -13,7 +13,7 @@ describe('dashboard render', () => {
     expect(screen.getByText('ForgeMCP Dashboard')).toBeTruthy()
   })
 
-  it('exposes the LabMCP page directly under Terra', () => {
+  it('exposes LabTerra WebMCP with place search and optional coordinates', () => {
     render(
       <MemoryRouter initialEntries={['/labmcp']}>
         <App />
@@ -22,5 +22,17 @@ describe('dashboard render', () => {
     expect(screen.getByRole('heading', { name: 'Laboratorium dochodzeń środowiskowych' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Uruchom agentów i analizę wieloletnią' })).toBeTruthy()
     expect(screen.getByRole('combobox', { name: 'Preset badawczy' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Szukaj miejsca' })).toBeTruthy()
+    expect(screen.getByLabelText('Szerokość geograficzna')).toBeTruthy()
+  })
+
+  it('exposes the concise research archive as a separate tab', () => {
+    render(
+      <MemoryRouter initialEntries={['/research-archive']}>
+        <App />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { name: 'Archiwum badań' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Wróć do LabTerra' })).toBeTruthy()
   })
 })
