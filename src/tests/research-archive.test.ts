@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { HazardInvestigationResult } from '../integrations/terra/hazardInvestigation'
 import { DEFAULT_IMAGERY_DISPLAY } from '../integrations/terra/imageryDisplay'
 import {
+  RESEARCH_ARCHIVE_BACKUP_KEY,
   RESEARCH_ARCHIVE_KEY,
   createResearchArchiveEntry,
   readResearchArchive,
@@ -47,20 +48,34 @@ function result(runId: string): HazardInvestigationResult {
 }
 
 describe('research archive', () => {
-  beforeEach(() => localStorage.clear())
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+  })
 
   it('saves a concise, deduplicated candidate record instead of raw imagery', () => {
     const first = createResearchArchiveEntry(result('run-1'), DEFAULT_IMAGERY_DISPLAY)
-    saveResearchArchiveEntry(first)
+    const saved = saveResearchArchiveEntry(first)
     saveResearchArchiveEntry({ ...first, savedAt: '2026-09-01T20:00:00Z' })
 
     const archive = readResearchArchive()
+    expect(saved.storage).toBe('local')
     expect(archive).toHaveLength(1)
     expect(archive[0].learningStatus).toBe('CURATION_REQUIRED_NOT_AUTOMATIC_TRAINING')
     expect(archive[0].displaySettings.evidenceMeaning).toBe('DISPLAY_ONLY_NOT_MODEL_INPUT')
     expect(archive[0].hydrology?.waterChangeState).toBe('VISIBLE_WATER_REDUCTION_CANDIDATE')
     expect(archive[0].hydrology?.causeStatus).toBe('NOT_ESTABLISHED_FROM_SUPPLIED_EVIDENCE')
     expect(JSON.stringify(archive[0])).not.toContain('image.jpg')
+  })
+
+  it('writes a verified backup and recovers when the primary record is damaged', () => {
+    const entry = createResearchArchiveEntry(result('run-backup'), DEFAULT_IMAGERY_DISPLAY)
+    saveResearchArchiveEntry(entry)
+    expect(localStorage.getItem(RESEARCH_ARCHIVE_BACKUP_KEY)).toBeTruthy()
+
+    localStorage.setItem(RESEARCH_ARCHIVE_KEY, '{damaged-primary')
+
+    expect(readResearchArchive().map(item => item.runId)).toEqual(['run-backup'])
   })
 
   it('fails closed on malformed browser data', () => {

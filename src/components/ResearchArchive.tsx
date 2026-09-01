@@ -5,7 +5,7 @@ import { readResearchArchive } from '../lib/researchArchive'
 import { StatusBadge } from './StatusBadge'
 
 export function ResearchArchive() {
-  const [entries] = useState(() => readResearchArchive())
+  const [entries, setEntries] = useState(() => readResearchArchive())
 
   const exportArchive = () => {
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), entries }, null, 2)], { type: 'application/json' })
@@ -23,10 +23,10 @@ export function ResearchArchive() {
       <div className="lab-status-stack"><StatusBadge value={`${entries.length} RECORDS`} /><StatusBadge value="HUMAN CURATION" /></div>
     </section>
     <section className="card">
-      <div className="toolbar"><Link className="button-link" to="/labmcp">Wróć do LabTerra</Link><button type="button" onClick={exportArchive} disabled={!entries.length}>Eksportuj archiwum JSON</button></div>
+      <div className="toolbar"><Link className="button-link" to="/labmcp">Wróć do LabTerra</Link><button type="button" onClick={() => setEntries(readResearchArchive())}>Odśwież archiwum</button><button type="button" onClick={exportArchive} disabled={!entries.length}>Eksportuj archiwum JSON</button></div>
       <p className="lab-note"><b>Zapis lokalny:</b> archiwum pozostaje w tej przeglądarce. Nie jest automatycznym treningiem ani prawdą terenową. Po eksporcie może zostać użyte dopiero jako kandydat do sprawdzonego zbioru, po weryfikacji i decyzji człowieka.</p>
     </section>
-    {!entries.length ? <section className="card lab-empty"><h2>Archiwum jest puste</h2><p>Po analizie wybierz „Zapisz swoje badania”. Zostanie zapisany skrót bez surowych obrazów.</p></section> : null}
+    {!entries.length ? <section className="card lab-empty"><h2>Archiwum jest puste</h2><p>Każda zakończona analiza zapisuje teraz automatycznie skrót bez ciężkich, surowych obrazów. Możesz też użyć przycisku „Zapisz ponownie”.</p></section> : null}
     <section className="lab-archive-list" aria-label="Zapisane badania">
       {entries.map(entry => <article className="card lab-archive-entry" key={entry.id}>
         <div className="lab-section-title"><div><p className="eyebrow">{new Date(entry.savedAt).toLocaleString('pl-PL')}</p><h2>{entry.title}</h2></div><div className="lab-status-stack"><StatusBadge value={entry.classification} /><StatusBadge value={entry.verificationState} /></div></div>
