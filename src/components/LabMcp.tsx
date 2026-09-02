@@ -58,8 +58,8 @@ const CURRENT_YEAR = new Date().getUTCFullYear()
 const PRESETS: Record<Exclude<FormState['preset'], 'custom'>, Omit<FormState, 'preset'>> = {
   test001: {
     regionQuery: 'Staw leśny przy Jeziorze Kuchnia, Polska — TEST 001',
-    latitude: '53.591400',
-    longitude: '19.010717',
+    latitude: '53.594595',
+    longitude: '19.000140',
     radiusKm: '2',
     startYear: '1990',
     endYear: String(CURRENT_YEAR),
@@ -253,6 +253,12 @@ export function LabMcp() {
         depth: form.depth,
         timelineMode: form.timelineMode,
         referenceQuery: form.preset === 'test001' ? 'Toruń' : undefined,
+        ...(form.preset === 'test001' ? {
+          caseId: 'test-001-forest-pond-kuchnia' as const,
+          focusLatitude: 53.594595,
+          focusLongitude: 19.00014,
+          focusRadiusKm: 0.25,
+        } : {}),
       }
       const response = await getTool('run_hazard_investigation')?.execute(input)
       if (!isToolEnvelope(response) || !isHazardResult(response.data)) throw new Error(isToolEnvelope(response) ? response.error ?? 'LabMCP nie zwrócił wyniku strukturalnego.' : 'Narzędzie WebMCP jest niedostępne.')
@@ -304,6 +310,8 @@ export function LabMcp() {
     ? modelPreviewImages.length + result.imagery.slots.filter(item => item.status === 'image').length
     : 0
   const waterExtrema = result ? getVisibleWaterExtrema(result) : null
+  const test001Record = result?.test001Context?.evidence.recordedResult ?? null
+  const test001ComparisonImages = test001Record?.comparisonImages ?? []
 
   return <>
     <section className="card lab-hero">
@@ -353,6 +361,7 @@ export function LabMcp() {
         <label>Promień AOI (km)
           <input aria-label="Promień AOI" type="number" min="1" max="500" value={form.radiusKm} onChange={event => setForm(current => ({ ...current, radiusKm: event.target.value }))} />
         </label>
+        {form.preset === 'test001' ? <p className="lab-note lab-span-two"><b>Dokładny cel TEST 001:</b> środek stawu 53.594595, 19.000140 · obrazy analityczne mają stały kadr o szerokości 500 m. Regionalny AOI 2 km pozostaje tylko kontekstem.</p> : null}
         <label>Od roku
           <input aria-label="Rok początkowy" type="number" min="1972" max={CURRENT_YEAR} value={form.startYear} onChange={event => setForm(current => ({ ...current, startYear: event.target.value }))} />
         </label>
@@ -435,7 +444,33 @@ export function LabMcp() {
         {archiveStatus ? <p className="lab-place-status" role="status" aria-live="polite">{archiveStatus}</p> : null}
       </section>
 
-      {waterExtrema ? <section className="card lab-water-extrema" aria-label="Ranking lat widocznej wody">
+      {test001Record ? <section className="card lab-test001-focus" aria-label="Dowód 500 m dla TEST 001">
+        <div className="lab-section-title"><div><p className="eyebrow">TEST 001 · TEN SAM STAW · KADR 500 M</p><h2>Silnie potwierdzony zanik historycznego lustra wody</h2></div><div className="lab-status-stack"><StatusBadge value="HIGH PRIORITY ANOMALY" /><StatusBadge value="CAUSE UNKNOWN" /></div></div>
+        <p className="lab-finding-lead"><b>Powtarzalne obrazy z lat 1990–2026 silnie wspierają niemal całkowity zanik historycznego trwałego lustra tego stawu.</b> To nie jest już porównanie z Jeziorem Kuchnia: oba obrazy poniżej pokazują ten sam stały wycinek wokół punktu {test001Record.correctedPondSeed.lat.toFixed(6)}, {test001Record.correctedPondSeed.lon.toFixed(6)}.</p>
+        <div className="lab-metrics">
+          <article><b>{test001Record.mostVisibleHistoricalYear}</b><span>najwięcej w zmierzonych latach historycznych · {test001Record.mostVisibleHistoricalAreaHa.toFixed(2)} ha</span></article>
+          <article><b>{test001Record.leastVisibleEndpointYear}</b><span>najmniej widocznej wody · brak porównywalnego trwałego lustra</span></article>
+          <article><b>≈ {test001Record.approximateDisappearedHistoricalFootprintHa.toFixed(2)} ha</b><span>szacowany zanik historycznego trwałego obrysu</span></article>
+          <article><b>{(test001Record.overlap1990WithCentralConsensusPercent).toFixed(1)}%</b><span>pokrycie obrysu 1990 z wieloletnim wzorcem</span></article>
+        </div>
+        <div className="lab-imagery-grid lab-fixed-crop-grid">
+          {test001ComparisonImages.map(image => {
+            const imageKey = `test001-fixed-${image.year}`
+            const alt = image.year === 2000 ? 'Staw TEST 001 w stałym kadrze historycznym z 2000 roku' : 'Basen stawu TEST 001 w tym samym stałym kadrze w 2026 roku'
+            return <figure key={image.year}>
+              {failedImages[imageKey]
+                ? <div className="lab-image-fallback" role="status"><span>Nie udało się pobrać obrazu dowodowego.</span><a href={image.url} target="_blank" rel="noreferrer">Otwórz źródło ↗</a></div>
+                : <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={image.url} style={displayFilterStyle} loading="eager" decoding="async" alt={alt} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
+              <figcaption><b>{image.year}</b><span>{image.year === 2000 ? 'historyczne lustro wody w obrysie' : 'ten sam historyczny obrys na zmienionym, suchszym basenie'}</span><small>stały kadr ~{test001Record.evidenceCropWidthM.toFixed(0)} m · czerwona linia = historyczny obrys konsensusowy, nie maska bieżącej wody · {imageDimensions[imageKey] ?? 'sprawdzanie obrazu'}</small></figcaption>
+            </figure>
+          })}
+        </div>
+        <p><b>Wielkość zmiany:</b> centralny historyczny obrys {test001Record.historicalPersistentFootprintHa.toFixed(2)} ha; zakres wspierany przez powtarzalne obrazy {(test001Record.repeatSupportedRangeM2[0] / 10_000).toFixed(2)}–{(test001Record.repeatSupportedRangeM2[1] / 10_000).toFixed(2)} ha. W 2026 nie widać porównywalnego trwałego ciemnego lustra.</p>
+        <p className="lab-note"><b>Granica prawdy:</b> dokładna resztkowa powierzchnia wody w 2026 i dokładny procent utraty pozostają nieustalone; korony drzew, cień, mokra gleba i piksele mieszane uniemożliwiają uczciwe wpisanie „0 m²” lub „100%”. Przyczyna wyschnięcia także nie jest jeszcze ustalona.</p>
+        <details><summary>Dostosuj jasność, kontrast i barwy pary dowodowej</summary><ImageryControls value={imageryDisplay} onChange={setImageryDisplay} /></details>
+      </section> : null}
+
+      {waterExtrema && !test001Record ? <section className="card lab-water-extrema" aria-label="Ranking lat widocznej wody">
         <div className="lab-section-title"><div><p className="eyebrow">TP26 · PORÓWNANIE WIELOLETNIE</p><h2>Rok maksimum i minimum widocznej wody</h2></div><StatusBadge value={waterExtrema.status === 'ESTABLISHED' ? 'COMPARABLE YEARS' : 'INSUFFICIENT DATA'} /></div>
         <div className="lab-metrics lab-water-extrema-metrics">
           <article><b>{waterExtrema.status === 'ESTABLISHED' ? waterExtrema.most_visible_water_year : 'nie ustalono'}</b><span>najwięcej widocznej wody</span></article>
@@ -586,7 +621,7 @@ export function LabMcp() {
       {result.test001Context ? <section className="card">
         <h2>Preset TEST 001 — zapisany sygnał i porównanie Toruń</h2>
         <div className="grid two">
-          <article><StatusBadge value="ANOMALY" /><h3>Co jest potwierdzone w zapisanym materiale</h3><p>Historyczny trwały obrys widocznego stawu: <b>{result.test001Context.evidence.recordedResult.historicalPersistentFootprintM2.toLocaleString('pl-PL')} m² ({result.test001Context.evidence.recordedResult.historicalPersistentFootprintHa.toFixed(4)} ha)</b>.</p><p>Dokładna powierzchnia wody w 2026, procent utraty i przyczyna: <b>nieopublikowane / niepotwierdzone</b>.</p></article>
+          <article><StatusBadge value="ANOMALY" /><h3>Co jest potwierdzone w zapisanym materiale</h3><p>Powtarzalne obrazy silnie wspierają niemal całkowity zanik historycznego trwałego lustra. Historyczny obrys: <b>{result.test001Context.evidence.recordedResult.historicalPersistentFootprintM2.toLocaleString('pl-PL')} m² ({result.test001Context.evidence.recordedResult.historicalPersistentFootprintHa.toFixed(4)} ha)</b>.</p><p>Dokładna resztkowa powierzchnia wody w 2026, dokładny procent utraty i przyczyna: <b>nieustalone</b>.</p></article>
           <article><StatusBadge value={result.test001Context.reference.status} /><h3>Baza „Toruń”</h3><p>{result.test001Context.reference.comparisonFinding}</p><p><b>Potrzebne:</b> {result.test001Context.reference.requiredHumanAction}</p></article>
         </div>
         {showExtended ? <details><summary>Źródła o cieku głównym, dopływach i odpływach</summary><ul>

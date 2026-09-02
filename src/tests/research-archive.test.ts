@@ -117,4 +117,51 @@ describe('research archive', () => {
     localStorage.setItem(RESEARCH_ARCHIVE_KEY, JSON.stringify([entry]))
     expect(readResearchArchive()).toEqual([])
   })
+
+  it('archives the quantitative TEST 001 fixed-crop finding without raw images', () => {
+    const testResult = result('run-test001')
+    testResult.test001Context = {
+      evidence: {
+        recordedResult: {
+          correctedPondSeed: { lat: 53.594595, lon: 19.00014 },
+          requestedFrameWidthM: 500,
+          evidenceCropWidthM: 468.75,
+          mostVisibleHistoricalYear: 2008,
+          mostVisibleHistoricalAreaM2: 20_780.8,
+          mostVisibleHistoricalAreaHa: 2.0781,
+          leastVisibleEndpointYear: 2026,
+          approximateDisappearedHistoricalFootprintM2: 17_722.2,
+          approximateDisappearedHistoricalFootprintHa: 1.7722,
+          nearTotalStateTransitionSupported: true,
+          historicalPersistentFootprintM2: 17_722.2,
+          historicalPersistentFootprintHa: 1.7722,
+          repeatSupportedRangeM2: [16_269.3, 21_642],
+          broadHistoricalUpperEnvelopeM2: 23_978.3,
+          overlap1990WithCentralConsensusPercent: 92.528,
+          recentState: 'No comparable persistent dark-water footprint is visible.',
+          lossPercentStatus: 'Near-total; exact percentage uncertainty-gated.',
+          comparisonImages: [{ year: 2000, role: 'HISTORICAL_FIXED_CROP', url: 'https://example.org/evidence.png' }],
+          stateChangeSupported: true,
+          openWaterArea2026M2: null,
+          exactLossPercentPublished: false,
+          causeEstablished: false,
+          sourceMethod: 'Fixed-crop consensus',
+          sourceYears: [1998, 1999, 2000, 2004, 2005, 2006, 2008],
+        },
+      },
+      reference: {},
+      connectivity: [],
+    } as unknown as HazardInvestigationResult['test001Context']
+
+    saveResearchArchiveEntry(createResearchArchiveEntry(testResult, DEFAULT_IMAGERY_DISPLAY))
+    const [entry] = readResearchArchive()
+
+    expect(entry.test001Finding?.mostVisibleHistoricalYear).toBe(2008)
+    expect(entry.test001Finding?.leastVisibleEndpointYear).toBe(2026)
+    expect(entry.test001Finding?.approximateDisappearedHistoricalFootprintHa).toBe(1.7722)
+    expect(entry.test001Finding?.exactOpenWaterArea2026M2).toBeNull()
+    expect(entry.test001Finding?.causeStatus).toBe('NOT_ESTABLISHED')
+    expect(entry.shortSummary.some(item => item.includes('niemal całkowity zanik'))).toBe(true)
+    expect(JSON.stringify(entry)).not.toContain('evidence.png')
+  })
 })

@@ -496,6 +496,26 @@ small {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.lab-test001-focus {
+  border-color: #d3ad48;
+  background: linear-gradient(135deg, #101a35, #102f3a);
+}
+
+.lab-finding-lead {
+  border-left: 3px solid #67dcff;
+  padding-left: 0.85rem;
+  font-size: 1.03rem;
+}
+
+.lab-fixed-crop-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 1rem 0;
+}
+
+.lab-fixed-crop-grid figure {
+  border-color: #d3ad48;
+}
+
 .lab-imagery-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));

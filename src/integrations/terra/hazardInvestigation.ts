@@ -41,6 +41,10 @@ export type HazardInvestigationInput = {
   depth: InvestigationDepth
   timelineMode: TimelineMode
   referenceQuery?: string
+  caseId?: 'test-001-forest-pond-kuchnia'
+  focusLatitude?: number
+  focusLongitude?: number
+  focusRadiusKm?: number
 }
 
 export type VisibleWaterExtrema = {
@@ -63,10 +67,54 @@ export type HydrologyScreening = {
   visible_water_extrema?: VisibleWaterExtrema
 }
 
+export type Test001FocusEvidenceRecord = {
+  case_id: 'test-001-forest-pond-kuchnia'
+  evidence_revision: string
+  target: {
+    name: string
+    latitude: number
+    longitude: number
+    requested_frame_width_m: number
+    evidence_crop_width_m: number
+    registration: 'SAME_FIXED_GEOGRAPHIC_TARGET'
+  }
+  historical_visible_footprint: {
+    central_m2: number
+    central_ha: number
+    repeat_supported_range_m2: [number, number]
+    repeat_supported_range_ha: [number, number]
+    broad_union_upper_m2: number
+    overlap_1990_with_central_consensus_percent: number
+  }
+  recorded_year_ranking: {
+    most_visible_historical_component_year: number
+    most_visible_historical_component_m2: number
+    most_visible_historical_component_ha: number
+    least_visible_endpoint_year: number
+    interpretation: string
+  }
+  state_change: {
+    status: 'NEAR_TOTAL_HISTORICAL_OPEN_WATER_STATE_TRANSITION_STRONGLY_SUPPORTED'
+    approximate_disappeared_historical_footprint_m2: number
+    approximate_disappeared_historical_footprint_ha: number
+    exact_2026_open_water_area_m2: null
+    exact_loss_percent: null
+    cause_status: 'NOT_ESTABLISHED'
+  }
+  alert: {
+    status: 'HIGH_PRIORITY_MONITORING_ANOMALY_REQUIRES_INVESTIGATION'
+    delivery: 'NOT_SENT'
+    field_verification_required: true
+  }
+  comparison_images: Array<{ year: number; role: string; url: string }>
+  method: string
+}
+
 export type WorkerAreaAnalysis = {
   service: string
   generated_at_utc: string
   area: { place_name: string | null; latitude: number; longitude: number; radius_km: number }
+  visual_focus?: { latitude: number; longitude: number; radius_km: number; frame_width_m: number; purpose: string; native_resolution_unchanged: true }
   period: { start_date: string; end_date: string }
   depth: 'quick' | 'deep'
   preview_images: Array<{ date: string; source: string; url: string; high_resolution_aoi?: boolean; evidence_role?: string | null; nominal_resolution_m?: number | null; cloud_cover?: number | null }>
@@ -92,6 +140,7 @@ export type WorkerAreaAnalysis = {
     limitations: string[]
     recommended_next_step: string
   }
+  test001_focus_evidence?: Test001FocusEvidenceRecord | null
   analysis_protocol?: {
     usage: string
     training_3: { streamed_windows: number; research_region_count: number; environmental_ground_truth: false }
@@ -429,6 +478,10 @@ function assertInput(input: HazardInvestigationInput) {
   if (input.longitude !== undefined && (!Number.isFinite(input.longitude) || input.longitude < -180 || input.longitude > 180)) throw new Error('Długość geograficzna jest poza zakresem WGS84.')
   if ((input.latitude === undefined) !== (input.longitude === undefined)) throw new Error('Podaj obie współrzędne albo pozostaw obie puste.')
   if (!Number.isFinite(input.radiusKm) || input.radiusKm < 1 || input.radiusKm > 500) throw new Error('Promień musi mieścić się w zakresie 1–500 km.')
+  if ((input.focusLatitude === undefined) !== (input.focusLongitude === undefined)) throw new Error('Podaj obie współrzędne zbliżenia albo pozostaw obie puste.')
+  if (input.focusLatitude !== undefined && (!Number.isFinite(input.focusLatitude) || input.focusLatitude < -90 || input.focusLatitude > 90)) throw new Error('Szerokość zbliżenia jest poza zakresem WGS84.')
+  if (input.focusLongitude !== undefined && (!Number.isFinite(input.focusLongitude) || input.focusLongitude < -180 || input.focusLongitude > 180)) throw new Error('Długość zbliżenia jest poza zakresem WGS84.')
+  if (input.focusRadiusKm !== undefined && (!Number.isFinite(input.focusRadiusKm) || input.focusRadiusKm < 0.1 || input.focusRadiusKm > 50)) throw new Error('Promień zbliżenia musi mieścić się w zakresie 0,1–50 km.')
   if (!Number.isInteger(input.startYear) || input.startYear < 1972 || input.startYear > currentYear) throw new Error(`Rok początkowy musi mieścić się w zakresie 1972–${currentYear}.`)
   if (!Number.isInteger(input.endYear) || input.endYear < input.startYear || input.endYear > currentYear) throw new Error(`Rok końcowy musi mieścić się między rokiem początkowym a ${currentYear}.`)
   if (!input.hazardTypes.length) throw new Error('Wybierz co najmniej jeden typ zagrożenia.')
@@ -469,6 +522,10 @@ export async function analyzeMultiyearImagery(input: HazardInvestigationInput, l
       latitude,
       longitude,
       radius_km: input.radiusKm,
+      ...(input.caseId ? { case_id: input.caseId } : {}),
+      ...(input.focusLatitude === undefined ? {} : { focus_latitude: input.focusLatitude }),
+      ...(input.focusLongitude === undefined ? {} : { focus_longitude: input.focusLongitude }),
+      ...(input.focusRadiusKm === undefined ? {} : { focus_radius_km: input.focusRadiusKm }),
       start_date: range.startDate,
       end_date: range.endDate,
       place_name: input.regionQuery,
@@ -722,7 +779,14 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
   const areaLabel = `${resolvedName}; ${latitude.toFixed(6)},${longitude.toFixed(6)}; radius ${input.radiusKm} km`
   const isTest001 = haversineKm(latitude, longitude, 53.5914, 19.010717) <= 1
   const needsWaterAnalogues = input.hazardTypes.some(item => WATER_HAZARDS.has(item))
-  const analysisPromise = analyzeMultiyearImagery(input, latitude, longitude)
+  const analysisInput: HazardInvestigationInput = isTest001 ? {
+    ...input,
+    caseId: 'test-001-forest-pond-kuchnia',
+    focusLatitude: 53.594595,
+    focusLongitude: 19.00014,
+    focusRadiusKm: 0.25,
+  } : input
+  const analysisPromise = analyzeMultiyearImagery(analysisInput, latitude, longitude)
   const galleryPromise = retrieveMultiyearImagery(input, latitude, longitude)
   const elevationPromise = getElevationProfile(latitude, longitude)
   const eventsPromise = findObservations(latitude, longitude, 60)
@@ -819,11 +883,11 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
     'Terra public evidence repository',
     test001Context ? 'WARNING' : 'NOT_CONNECTED',
     'Preset wnosi zapisaną anomalię, nie potwierdzoną przyczynę.',
-    test001Context ? 'Zarejestrowana zmiana stanu historycznego; dokładny stan 2026 i przyczyna pozostają niepotwierdzone.' : 'Źródło nie odpowiedziało.',
+    test001Context ? 'Powtarzalne obrazy silnie wspierają niemal całkowity zanik historycznego trwałego lustra; dokładna resztkowa powierzchnia 2026 i przyczyna pozostają nieustalone.' : 'Źródło nie odpowiedziało.',
     'https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/experiment-001/',
   ))
 
-  if (analysis) provenance.push(sourceProvenance('Representative official/public EO imagery and Landsat catalogue', areaLabel, 'analyze_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/analyze`, { period: analysis.period, depth: analysis.depth, aiVisualImageCount: analysis.ai_visual_image_count, landsatMatched: analysis.landsat_catalog.matched }, 'Model oglądał wyłącznie liczbę obrazów podaną w aiVisualImageCount; pozostałe wpisy katalogu to metadane.'))
+  if (analysis) provenance.push(sourceProvenance('Representative official/public EO imagery and Landsat catalogue', areaLabel, 'analyze_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/analyze`, { period: analysis.period, depth: analysis.depth, aiVisualImageCount: analysis.ai_visual_image_count, landsatMatched: analysis.landsat_catalog.matched, visualFocus: analysis.visual_focus ?? null }, 'Model oglądał wyłącznie liczbę obrazów podaną w aiVisualImageCount; pozostałe wpisy katalogu to metadane. Kadr zbliżenia poprawia rejestrację celu, nie natywną rozdzielczość sensora.'))
   provenance.push(sourceProvenance('Year-by-year NASA HLS/WELD AOI, USGS browse and NASA GIBS fallback gallery', areaLabel, 'retrieve_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/yearly-gallery`, { years: gallery.requestedYears, season: input.season, returnedImages: gallery.slots.filter(item => item.status === 'image').length }, 'Galeria służy do kontroli i wyboru scen. Nie każdy obraz został obejrzany przez model.'))
   provenance.push(...elevation.provenance, ...events.provenance)
   if (analogues) provenance.push(...analogues.provenance)
@@ -848,7 +912,7 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
   observations.push({ evidenceClass: 'CATALOGUE_METADATA', statement: `${gallery.slots.filter(item => item.status === 'image').length} z ${gallery.requestedYears.length} żądanych lat ma oficjalny obraz AOI, podgląd lub jawny fallback.`, source: 'NASA HLS/WELD/GIBS · USGS Landsat', limitation: 'Metadane i podgląd nie oznaczają automatycznego pomiaru zmiany.' })
   if (elevation.state === 'OBSERVATION') observations.push({ evidenceClass: 'OBSERVATION', statement: `Pobrano ${elevation.samples.length} próbek Copernicus DEM w profilu przez AOI.`, source: 'Open-Meteo / Copernicus DEM GLO-90', limitation: 'Próbki rastrowe nie są niwelacją terenową ani automatycznym kierunkiem przepływu.' })
   for (const item of events.observations) observations.push({ evidenceClass: 'CONTEXT_ONLY', statement: `${item.title} (${item.date})`, source: `NASA EONET · ${item.source}`, limitation: 'Bieżący kontekst z szerokiego filtra; nie ustanawia związku z badaną zmianą.' })
-  if (test001Context) observations.push({ evidenceClass: 'ANOMALY', statement: `TEST 001: publiczny zapis wspiera historyczną zmianę stanu widocznego lustra stawu o centralnym historycznym obrysie ${test001Context.evidence.recordedResult.historicalPersistentFootprintHa.toFixed(4)} ha.`, source: 'Terra TEST 001 recorded measurement', limitation: 'Dokładny obszar otwartej wody w 2026, procent utraty i przyczyna nie są opublikowanym wynikiem.' })
+  if (test001Context) observations.push({ evidenceClass: 'ANOMALY', statement: `TEST 001: porównanie tego samego stałego kadru silnie wspiera niemal całkowity zanik historycznego trwałego lustra wody. Centralny historyczny obrys wynosi około ${test001Context.evidence.recordedResult.historicalPersistentFootprintHa.toFixed(2)} ha (zakres powtarzalnych obrazów ${(test001Context.evidence.recordedResult.repeatSupportedRangeM2[0] / 10_000).toFixed(2)}–${(test001Context.evidence.recordedResult.repeatSupportedRangeM2[1] / 10_000).toFixed(2)} ha).`, source: 'Terra TEST 001 recorded fixed-crop measurement', limitation: 'To szacunek zaniku historycznego obrysu, nie dokładny pomiar resztkowej wody w 2026 ani dowód przyczyny.' })
 
   const signals = screenSignals(analysis, input.hazardTypes)
   const recordedAnomaly = Boolean(test001Context?.evidence.recordedResult.stateChangeSupported)
@@ -930,7 +994,9 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
       galleryImageSlotsNotClaimedAsInspected: gallery.slots.filter(item => item.status === 'image').length,
       missingYears: gallery.slots.filter(item => item.status === 'missing').length,
       analysis,
-      warning: 'Tylko ai_visual_image_count oznacza obrazy obejrzane przez model. Galeria roczna jest materiałem źródłowym do kontroli człowieka, nie automatycznie przeanalizowanym szeregiem.',
+      warning: isTest001
+        ? 'TEST 001 używa skorygowanego środka stawu i stałej pary dowodowej ~469 m; live AOI ma szerokość 500 m. Tylko ai_visual_image_count oznacza obrazy obejrzane przez model. Zbliżenie nie zwiększa natywnej rozdzielczości sensora.'
+        : 'Tylko ai_visual_image_count oznacza obrazy obejrzane przez model. Galeria roczna jest materiałem źródłowym do kontroli człowieka, nie automatycznie przeanalizowanym szeregiem.',
     },
     observations,
     screeningSignals: signals,
