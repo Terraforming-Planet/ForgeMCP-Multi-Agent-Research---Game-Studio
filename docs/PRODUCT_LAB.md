@@ -7,13 +7,13 @@ The Product Lab has two explicit test tracks:
 
 ## What the generator really creates
 
-`Generate procedural glTF + PNG` deterministically constructs model and texture bytes in browser memory from the current versioned specification, then exposes explicit download buttons:
+`Generate and show 3D model + texture` deterministically constructs model and texture bytes in browser memory, immediately renders a draggable/rotating view of the same position/index arrays, and exposes explicit download buttons:
 
 - a self-contained glTF 2.0 JSON model with embedded geometry and an embedded 128×128 PNG base-colour texture;
 - the same deterministic PNG texture as a separate download;
 - a compact JSON QA manifest linking the files to the specification ID.
 
-Figurine geometry contains a board/base, spherical Earth body, arms and legs. Board, station-shell and texture-plane presets have separate procedural geometry. Source size is entered in millimetres and converted to standard glTF metre coordinates. Identical inputs produce the same specification ID, geometry and texture.
+Supported local prompt presets include Earth Guardian, faceted rook, Crayon knight, classic pawn, LED board, texture tile and four distinct station shells. The prompt interpreter is deterministic and only selects these documented shapes; unrecognized creative detail remains part of the Codex brief. Source size is entered in millimetres and converted to standard glTF metre coordinates. Identical inputs produce the same specification ID, fingerprint, geometry and texture.
 
 This is a real low-poly prototype export, but it is not a sculpted production model, GLB/STL, complete PBR set, printability simulation, certified station device or manufacturing proof.
 
@@ -24,6 +24,8 @@ The ForgeMCP assistant converts the human prompt into a versioned Codex handoff 
 > Zrób mi model 3D figurki planety Ziemia jako bajkowej postaci stojącej na szachownicy czarno-białej z podświetleniem LED zielono-niebieskim.
 
 Preparing the brief is not represented as external Codex execution. Generated files remain local until the human explicitly downloads or approves a later integration step.
+
+The on-screen Codex command requires licensed input assets, linked preview/export geometry, QA and human approval. Large source archives follow [the Premium Visual Pack intake](PREMIUM_ASSET_PACK.md); they are never added directly to the page bundle.
 
 ## Shopify and B2B boundary
 

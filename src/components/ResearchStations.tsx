@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { RESEARCH_STATION_PRESETS } from '../data/researchStations'
+import { RESEARCH_STATION_PRESETS, type ResearchStationPresetId } from '../data/researchStations'
 import type { ResearchStation } from '../types/core'
 import { readLocalJson, writeLocalJson } from '../lib/storage'
 import { StationConceptVisual } from './StationConceptVisual'
+import { LiveProjectFrame } from './LiveProjectFrame'
 
 const storageKey = 'forgemcp.researchStations'
 
@@ -20,8 +21,10 @@ export function ResearchStations() {
   const [form, setForm] = useState(emptyStation)
   const [stations, setStations] = useState<ResearchStation[]>(() => readLocalJson(storageKey, [] as ResearchStation[]))
   const [selected, setSelected] = useState<string | null>(null)
+  const [sourceStationId, setSourceStationId] = useState<ResearchStationPresetId>('arctic')
 
   const station = useMemo(() => stations.find((item) => item.id === selected), [selected, stations])
+  const sourceStation = useMemo(() => RESEARCH_STATION_PRESETS.find(item => item.id === sourceStationId) ?? RESEARCH_STATION_PRESETS[0], [sourceStationId])
 
   function createStation() {
     if (!form.name || !form.aoi || !form.coordinates) return
@@ -49,6 +52,11 @@ export function ResearchStations() {
     setForm(emptyStation)
   }
 
+  function selectSourceStation(id: ResearchStationPresetId) {
+    setSourceStationId(id)
+    window.requestAnimationFrame(() => document.getElementById('source-station-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+
   return (
     <>
       <section className="card station-intro">
@@ -72,15 +80,32 @@ export function ResearchStations() {
                 <div><dt>Evidence lane</dt><dd>{item.sources.join(' · ')}</dd></div>
                 <div><dt>Game material</dt><dd>{item.gameApplication}</dd></div>
               </dl>
+              <div className="station-work-grid">
+                <div><h3>What runs now</h3><ul>{item.implementedWork.map(task => <li key={task}>{task}</li>)}</ul></div>
+                <div><h3>What we would do at the station</h3><ul>{item.fieldProgram.map(task => <li key={task}>{task}</li>)}</ul></div>
+              </div>
+              <p className="station-output"><b>Evidence outputs:</b> {item.evidenceOutputs.join(' · ')}</p>
               <p className="lab-note">{item.truthBoundary}</p>
               <div className="toolbar">
                 {item.terraPresetAvailable ? <Link className="button-link" to={`/labmcp?station=${item.id}&region=${encodeURIComponent(item.regionQuery)}`}>Investigate with Terra</Link> : null}
+                <button type="button" onClick={() => selectSourceStation(item.id)}>Select live preview</button>
                 <a className="button-link" href={item.publicUrl} target="_blank" rel="noreferrer">Open source station ↗</a>
                 <Link className="button-link button-link--quiet" to={`/game-studio?station=${item.id}`}>Use in Game Studio</Link>
               </div>
             </div>
           </article>
         ))}
+      </section>
+
+      <section className="card source-station-preview" id="source-station-preview">
+        <LiveProjectFrame
+          key={sourceStation.id}
+          title={`${sourceStation.name} · ${sourceStation.subtitle}`}
+          url={sourceStation.publicUrl}
+          description={`Load the original ${sourceStation.name} public research interface from the Polar Sun Moon Analysis repository. ForgeMCP keeps it separate from the concept image and from any physical-station claim.`}
+          loadLabel={`Load ${sourceStation.name} source lab`}
+          instructions={sourceStation.implementedWork.join(' · ')}
+        />
       </section>
 
       <section className="card custom-stations">
