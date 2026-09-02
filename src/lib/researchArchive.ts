@@ -75,7 +75,7 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
   const hydrology = visual?.hydrology_screening
   const waterExtrema = getVisibleWaterExtrema(result)
   const test001 = result.test001Context?.evidence.recordedResult
-  const waterExtremaSummary = waterExtrema?.status === 'ESTABLISHED'
+  const waterExtremaSummary = test001 ? undefined : waterExtrema?.status === 'ESTABLISHED'
     ? `Widoczna woda — najwięcej: ${waterExtrema.most_visible_water_year}; najmniej: ${waterExtrema.least_visible_water_year}; porównane lata: ${waterExtrema.compared_years.join(', ')}.`
     : waterExtrema
       ? `Widoczna woda — rok maksimum i minimum nieustalony: ${waterExtrema.basis}`
@@ -83,9 +83,9 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
   const shortSummary = [
     test001 ? `TEST 001: powtarzalne obrazy silnie wspierają niemal całkowity zanik historycznego trwałego lustra; szacowany zanik obrysu około ${test001.approximateDisappearedHistoricalFootprintHa.toFixed(2)} ha.` : undefined,
     test001 ? `W zmierzonych latach historycznych największy widoczny obrys: ${test001.mostVisibleHistoricalYear} (${test001.mostVisibleHistoricalAreaHa.toFixed(2)} ha); najmniej widocznej wody: punkt końcowy ${test001.leastVisibleEndpointYear}.` : undefined,
-    visual?.headline,
-    visual?.change_over_time,
-    visual?.water_assessment,
+    test001 ? undefined : visual?.headline,
+    test001 ? undefined : visual?.change_over_time,
+    test001 ? undefined : visual?.water_assessment,
     waterExtremaSummary,
     hydrology ? `Woda: ${hydrology.water_change_state}; dopływy/odpływy: ${hydrology.inflow_outflow_status}; przyczyna nieustalona.` : undefined,
     result.verification.reason,
@@ -129,7 +129,7 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
       mainAndTributaryContext: compact(hydrology.main_and_tributary_context),
       causeStatus: hydrology.cause_status,
     } : undefined,
-    waterExtrema: waterExtrema ? {
+    waterExtrema: !test001 && waterExtrema ? {
       status: waterExtrema.status,
       mostVisibleWaterYear: waterExtrema.most_visible_water_year,
       leastVisibleWaterYear: waterExtrema.least_visible_water_year,
@@ -305,13 +305,24 @@ function isArchiveEntry(value: unknown): value is ResearchArchiveEntry {
 }
 
 export function readResearchArchive(): ResearchArchiveEntry[] {
+  const normalize = (entry: ResearchArchiveEntry): ResearchArchiveEntry => {
+    if (!entry.test001Finding) return entry
+    return {
+      ...entry,
+      shortSummary: entry.shortSummary.filter(item => !item.startsWith('Widoczna woda —')),
+      waterExtrema: undefined,
+    }
+  }
+
   const read = (storage: Storage | undefined, key: string) => {
     if (!storage) return null
     try {
       const raw = storage.getItem(key)
       if (!raw) return null
       const parsed = JSON.parse(raw) as unknown
-      return Array.isArray(parsed) ? parsed.filter(isArchiveEntry).slice(0, RESEARCH_ARCHIVE_LIMIT) : null
+      return Array.isArray(parsed)
+        ? parsed.filter(isArchiveEntry).map(normalize).slice(0, RESEARCH_ARCHIVE_LIMIT)
+        : null
     } catch {
       return null
     }
