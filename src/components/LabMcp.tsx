@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   HAZARD_LABELS,
   HAZARD_TYPES,
@@ -115,6 +115,12 @@ const PRESETS: Record<Exclude<FormState['preset'], 'custom'>, Omit<FormState, 'p
 
 const INITIAL_FORM: FormState = { preset: 'test001', ...PRESETS.test001 }
 
+const STATION_HAZARDS: Partial<Record<string, HazardType[]>> = {
+  arctic: ['snow-avalanche', 'landslide', 'terrain-change'],
+  sahara: ['water-loss', 'flow-obstruction', 'terrain-change'],
+  ocean: ['coastal-change', 'flood', 'water-loss'],
+}
+
 function isToolEnvelope(value: unknown): value is ToolEnvelope {
   return typeof value === 'object' && value !== null
 }
@@ -174,7 +180,21 @@ function archiveStatusMessage(storage: ResearchArchiveStorage, count: number, au
 }
 
 export function LabMcp() {
-  const [form, setForm] = useState<FormState>(INITIAL_FORM)
+  const [searchParams] = useSearchParams()
+  const [form, setForm] = useState<FormState>(() => {
+    const requestedRegion = searchParams.get('region')?.trim()
+    const stationId = searchParams.get('station')
+    if (!requestedRegion) return INITIAL_FORM
+    return {
+      ...INITIAL_FORM,
+      preset: 'custom',
+      regionQuery: requestedRegion,
+      latitude: '',
+      longitude: '',
+      radiusKm: stationId === 'ocean' ? '100' : '25',
+      hazards: STATION_HAZARDS[stationId ?? ''] ?? ['water-loss', 'terrain-change'],
+    }
+  })
   const [result, setResult] = useState<HazardInvestigationResult | null>(null)
   const [error, setError] = useState('')
   const [running, setRunning] = useState(false)

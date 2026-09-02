@@ -1,19 +1,19 @@
 # Demo Script (<3 minutes)
 
 ## 0:00–0:20
-Explain ForgeMCP architecture: human, coordinator, specialist agents, WebMCP tools, verification, human control.
+Show the cosmic ForgeMCP hero and the three immediate doors. Explain why two projects share one control pattern: Terra tests evidence discipline; Cube tests repeatable decisions.
 
 ## 0:20–1:10 (Terra)
-Click **Demo: OBSERVE Terra**:
-- Show real `search_location`, `find_observations`, and `get_elevation_profile`
-- Show preliminary classification and explicit verification-required language
-- Show provenance viewer
+Search one region in **Terra Satellite Research**:
+- show original/public imagery labels and source provenance;
+- show hazard hypotheses and the unsent preliminary alert;
+- show the independent field-verification and human-approval gate.
 
-## 1:10–2:00 (Cube)
-Click **Demo: LEARN & COMPETE**. Show four actually executed games, legal replay records, paired seed/side swap methodology, zero claimed Elo, and the promotion approval boundary.
+## 1:10–1:55 (Game Studio)
+Open **Game Studio**. Switch Arctic/Sahara/Ocean/Earth–Space materials, show Classic and Lab LEDColor as upstream PR work, then run four actually executed Cube games. State: deterministic benchmark, legal engine, no Elo and no neural-training claim.
 
-## 2:00–2:35 (Create)
-Click **Demo: CREATE + QA**. Show the before/after configuration diff, QA checks, and `mutatesLiveGame: false`.
+## 1:55–2:35 (Create + commerce test)
+Open **3D + Shopify Test**, show the Earth Guardian prompt, and generate the local glTF + PNG prototype. Prepare the Codex brief, local Shopify draft and unsent B2B RFQ. Point out that no checkout, payment, order or supplier message exists.
 
 ## 2:35–2:55
-Show WebMCP Tool Inspector, status labels (LIVE/NOT CONNECTED), verification, and human-control conclusion.
+Show the 50-tool WebMCP inspector, `LIVE` / `NOT_CONNECTED` labels, verification and the final human-control conclusion.

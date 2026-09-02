@@ -17,6 +17,10 @@
 - [x] No secrets
 - [x] Existing/new work documented
 - [x] Tests PASS
+- [x] Four research stations visible and source-linked
+- [x] Local glTF + PNG generator test PASS
+- [x] Shopify/RFQ side effects blocked in TEST mode
+- [x] Generated concepts separated from original satellite evidence
 - [x] Judge instructions
 - [x] README complete
 - [ ] Demo video under 3 minutes

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { webmcpTools } from '../webmcp/registry'
 import { StatusBadge } from './StatusBadge'
 
-const domains = ['all', 'terra', 'cube', 'research', 'ai', 'visual', 'verification', 'system']
+const domains = ['all', 'terra', 'cube', 'commerce', 'visual', 'verification', 'system']
 
 export function ToolInspector() {
   const [filter, setFilter] = useState('all')
@@ -11,8 +11,6 @@ export function ToolInspector() {
     () =>
       webmcpTools.filter((tool) => {
         if (filter === 'all') return true
-        if (filter === 'research') return tool.domain === 'terra'
-        if (filter === 'ai') return tool.domain === 'cube'
         return tool.domain === filter
       }),
     [filter],

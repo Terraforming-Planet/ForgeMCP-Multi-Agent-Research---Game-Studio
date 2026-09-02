@@ -4,7 +4,9 @@
 - Public providers can be unavailable or CORS-blocked. The tools then return `NOT_CONNECTED` or `INSUFFICIENT_DATA`; no fallback observations are fabricated.
 - Cube execution is local through a pinned authoritative engine adapter. It is not connected to a remote model registry or the live Cube deployment.
 - The demo policies are deterministic heuristics, not neural networks. The 40-ply limit can produce artificial draws; no Elo is calculated.
-- Visual QA checks configuration only. Screenshot rendering, user studies and live upstream application are `NOT_CONNECTED`.
+- The Product Lab exporter creates a real low-poly glTF + 128×128 PNG prototype locally. It does not provide sculpted production topology, a full PBR material set, GLB/STL output, printability simulation, user studies, physical testing or manufacturing certification.
+- AI-generated hero/station/figurine images are visual concepts only and are explicitly separated from original satellite evidence, deployed hardware and generated model files.
+- Shopify and a supplier directory are `NOT_CONNECTED`; no product is published, no checkout/payment/order is created, no manufacturer is discovered and no RFQ is sent.
 - Candidate/station state is in browser memory and is not a production persistence layer.
 - The public Pages URL becomes available only after the deployment workflow reaches `main` and succeeds.
 - WebMCP requires a browser exposing `document.modelContext.registerTool`; other browsers receive visible instructions and continue in dashboard mode.
