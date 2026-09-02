@@ -4,6 +4,8 @@ Judge-ready browser application for the OpenAI WebMCP Challenge 2026:
 
 `HUMAN → COORDINATOR → SPECIALIST AGENTS → WEBMCP TOOLS → REAL DATA / ENGINE → VERIFICATION → HUMAN DECISION`
 
+**Live app:** https://terraforming-planet.github.io/ForgeMCP-Multi-Agent-Research---Game-Studio/
+
 It is not a chatbot. The coordinator is deterministic and never claims an LLM ran. Terra findings come from public providers; Cube results come from executed legal games.
 
 ## Three workflows
@@ -23,7 +25,7 @@ Unsupported browsers show `WEBMCP_UNAVAILABLE`; the dashboard itself still works
 
 ## Truth and provenance
 
-- Terra upstream: [source](https://github.com/Terraforming-Planet/Polar-Sun-Moon-Analysis) and [live app](https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/), audited at `fd47cbf1137b1094e932b6657cbb4af4de9373d7`.
+- Terra upstream: [source](https://github.com/Terraforming-Planet/Polar-Sun-Moon-Analysis) and [live app](https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/). Commit `fd47cbf1137b1094e932b6657cbb4af4de9373d7` is the audited adapter baseline; live Worker responses can include later, explicitly sourced Terra capabilities, so run-level provenance remains authoritative.
 - Cube upstream: [source](https://github.com/teslaeco/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer) and [live app](https://teslaeco.github.io/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/). The vendored deterministic engine is pinned to `9543accfcef8f8786c32aed282aa63e49ad27615`.
 
 Existing PR #101's 100K virtual policy-tuning games and PR #102's 3K legal policy runs are historical upstream work, not neural-network training and not ForgeMCP execution. ForgeMCP reports only games executed in the current run.

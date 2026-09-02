@@ -22,13 +22,35 @@ import { webmcpTools } from './webmcp/registry'
 
 function Home() {
   return (
-    <section className="card">
-      <h1>ForgeMCP</h1>
-      <p>Observe the Real World. Investigate. Warn responsibly. Repair and regenerate. Verify.</p>
-      <p>
-        ForgeMCP connects humans and specialized agents through real WebMCP tools to Terra Observation System and Cube Chess 512. LabMCP investigates user-selected regions across years while keeping observations, hypotheses, alerts and verified field findings separate.
-      </p>
-    </section>
+    <>
+      <section className="card">
+        <p className="eyebrow">Choose a workspace</p>
+        <h1>ForgeMCP</h1>
+        <p>One WebMCP control layer, two working environments. Choose the task you want humans and specialist agents to complete together.</p>
+      </section>
+
+      <section className="grid two" aria-label="ForgeMCP workspaces">
+        <article>
+          <p className="eyebrow">Observe · Investigate · Verify</p>
+          <h2>Multi-Agent Research</h2>
+          <p>
+            Investigate a chosen region across years with public Earth-observation evidence, competing hypotheses, provenance, uncertainty and a separate field-verification gate.
+          </p>
+          <p className="lab-note">Original official satellite products are identified explicitly. Derived or generated analysis never replaces them, and no warning is authorized without independent evidence and human approval.</p>
+          <Link className="button-link" to="/labmcp">Open Multi-Agent Research</Link>
+        </article>
+
+        <article>
+          <p className="eyebrow">Learn · Compete · Create</p>
+          <h2>Game Studio</h2>
+          <p>
+            Run deterministic Cube Chess 512 self-play benchmarks, inspect legal game records and keep model or visual changes behind reversible human approval.
+          </p>
+          <p className="lab-note">ForgeMCP reports only games executed in the current run. It claims neither Elo nor neural-network training.</p>
+          <Link className="button-link" to="/cube">Open Game Studio</Link>
+        </article>
+      </section>
+    </>
   )
 }
 
