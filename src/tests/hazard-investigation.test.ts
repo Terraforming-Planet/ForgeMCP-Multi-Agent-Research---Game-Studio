@@ -51,6 +51,8 @@ function installFetch(analysisAvailable: boolean) {
   vi.stubGlobal('fetch', vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
     const url = String(request)
     if (url === `${TERRA_EVIDENCE_API_URL}/research/analyze`) {
+      const body = JSON.parse(String(init?.body)) as { season?: string }
+      expect(body.season).toBe('spring')
       return analysisAvailable ? response(workerAnalysis()) : response({ error: 'Area analysis unavailable' }, false, 503)
     }
     if (url === `${TERRA_EVIDENCE_API_URL}/research/yearly-gallery`) {
