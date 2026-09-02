@@ -1,6 +1,6 @@
 import type { IntegrationHealth } from '../../types/core'
 
-export const CUBE_PUBLIC_URL = 'https://terraforming-planet.github.io/Cube-Chess-512/'
+export const CUBE_PUBLIC_URL = 'https://teslaeco.github.io/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/'
 
 export async function checkCubeHealth(): Promise<IntegrationHealth> {
   try {

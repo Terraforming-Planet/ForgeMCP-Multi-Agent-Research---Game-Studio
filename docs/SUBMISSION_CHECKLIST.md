@@ -2,7 +2,7 @@
 
 - [x] Public repository
 - [x] MIT/open-source license
-- [ ] Working public URL
+- [x] Working public URL: https://terraforming-planet.github.io/ForgeMCP-Multi-Agent-Research---Game-Studio/
 - [x] Production build PASS
 - [x] Real WebMCP implementation
 - [x] Multiple useful WebMCP tools

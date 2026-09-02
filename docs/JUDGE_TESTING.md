@@ -1,6 +1,8 @@
 # Judge testing
 
-1. Run `npm ci && npm run typecheck && npm test && npm run build`, then `npm run dev`.
+Live ForgeMCP app: https://terraforming-planet.github.io/ForgeMCP-Multi-Agent-Research---Game-Studio/
+
+1. Open the live app above, or run `npm ci && npm run typecheck && npm test && npm run build`, then `npm run dev`.
 2. Open `/#/dashboard`. A supported browser reports `WEBMCP_AVAILABLE`; otherwise exact instructions appear and dashboard execution remains usable.
 3. Click **Demo: OBSERVE Terra**. Confirm Nominatim, EONET and Copernicus DEM/Open-Meteo provenance. Network failure must produce `NOT_CONNECTED` / `INSUFFICIENT_DATA`.
 4. Click **Demo: LEARN & COMPETE**. Confirm exactly four completed records, legal replay moves, paired seeds 512/513 with side swaps, and no Elo. Promotion still awaits human approval.
