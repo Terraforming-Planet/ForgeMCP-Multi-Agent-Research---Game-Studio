@@ -162,6 +162,42 @@ describe('research archive', () => {
     expect(entry.test001Finding?.exactOpenWaterArea2026M2).toBeNull()
     expect(entry.test001Finding?.causeStatus).toBe('NOT_ESTABLISHED')
     expect(entry.shortSummary.some(item => item.includes('niemal całkowity zanik'))).toBe(true)
+    expect(entry.shortSummary.some(item => item.includes('najwięcej: 2000'))).toBe(false)
+    expect(entry.waterExtrema).toBeUndefined()
     expect(JSON.stringify(entry)).not.toContain('evidence.png')
+  })
+
+  it('removes a conflicting legacy live-image ranking from a TEST 001 archive record', () => {
+    const testResult = result('run-test001-legacy')
+    testResult.test001Context = {
+      evidence: {
+        recordedResult: {
+          correctedPondSeed: { lat: 53.594595, lon: 19.00014 },
+          requestedFrameWidthM: 500,
+          mostVisibleHistoricalYear: 2008,
+          mostVisibleHistoricalAreaHa: 2.0781,
+          leastVisibleEndpointYear: 2026,
+          approximateDisappearedHistoricalFootprintHa: 1.7722,
+          historicalPersistentFootprintHa: 1.7722,
+          repeatSupportedRangeM2: [16_269.3, 21_642],
+        },
+      },
+    } as unknown as HazardInvestigationResult['test001Context']
+    const legacy = createResearchArchiveEntry(testResult, DEFAULT_IMAGERY_DISPLAY)
+    legacy.waterExtrema = {
+      status: 'ESTABLISHED',
+      mostVisibleWaterYear: 2000,
+      leastVisibleWaterYear: 2026,
+      comparedYears: [2000, 2026],
+      method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES',
+      basis: 'Legacy live subset ranking.',
+    }
+    legacy.shortSummary.push('Widoczna woda — najwięcej: 2000; najmniej: 2026.')
+    localStorage.setItem(RESEARCH_ARCHIVE_KEY, JSON.stringify([legacy]))
+
+    const [normalized] = readResearchArchive()
+    expect(normalized.waterExtrema).toBeUndefined()
+    expect(normalized.shortSummary.some(item => item.includes('najwięcej: 2000'))).toBe(false)
+    expect(normalized.test001Finding?.mostVisibleHistoricalYear).toBe(2008)
   })
 })
