@@ -7,9 +7,9 @@
 - [x] Real WebMCP implementation
 - [x] Multiple useful WebMCP tools
 - [x] Real tool invocation verified
-- [ ] Terra integration tested
-- [ ] Cube integration tested
-- [ ] ChatGPT browser tested
+- [x] Terra integration tested — live Lake Chad run: 8 original satellite inputs, 1,531 matched Landsat catalogue scenes, no AI imagery passed to the model, no unverified alert emitted
+- [x] Cube integration tested — four games executed, zero illegal moves, 135 distinct move records, benchmark gate PASS
+- [x] ChatGPT browser tested — public routes loaded, 50 WebMCP tools discovered, guarded Shopify and B2B boundaries visible
 - [ ] Chrome tested
 - [x] Verification visible
 - [x] Provenance visible
