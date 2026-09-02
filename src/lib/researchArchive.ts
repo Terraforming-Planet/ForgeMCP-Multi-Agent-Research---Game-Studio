@@ -1,4 +1,4 @@
-import type { HazardInvestigationResult } from '../integrations/terra/hazardInvestigation'
+import { getVisibleWaterExtrema, type HazardInvestigationResult } from '../integrations/terra/hazardInvestigation'
 import type { ImageryDisplaySettings } from '../integrations/terra/imageryDisplay'
 
 export const RESEARCH_ARCHIVE_KEY = 'forgemcp.terraResearchArchive.v1'
@@ -35,6 +35,14 @@ export type ResearchArchiveEntry = {
     mainAndTributaryContext: string
     causeStatus: string
   }
+  waterExtrema?: {
+    status: 'ESTABLISHED' | 'INSUFFICIENT_EVIDENCE'
+    mostVisibleWaterYear: number | null
+    leastVisibleWaterYear: number | null
+    comparedYears: number[]
+    method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES'
+    basis: string
+  }
   imagery: { inspectedByModel: number; galleryImages: number; requestedYears: number; missingYears: number }
   sources: Array<{ name: string; provider: string; state: string; sourceUrl: string }>
   limitations: string[]
@@ -51,13 +59,20 @@ let memoryFallbackActive = false
 export function createResearchArchiveEntry(result: HazardInvestigationResult, display: ImageryDisplaySettings): ResearchArchiveEntry {
   const visual = result.imagery.analysis?.analysis
   const hydrology = visual?.hydrology_screening
+  const waterExtrema = getVisibleWaterExtrema(result)
+  const waterExtremaSummary = waterExtrema?.status === 'ESTABLISHED'
+    ? `Widoczna woda — najwięcej: ${waterExtrema.most_visible_water_year}; najmniej: ${waterExtrema.least_visible_water_year}; porównane lata: ${waterExtrema.compared_years.join(', ')}.`
+    : waterExtrema
+      ? `Widoczna woda — rok maksimum i minimum nieustalony: ${waterExtrema.basis}`
+      : undefined
   const shortSummary = [
     visual?.headline,
     visual?.change_over_time,
     visual?.water_assessment,
+    waterExtremaSummary,
     hydrology ? `Woda: ${hydrology.water_change_state}; dopływy/odpływy: ${hydrology.inflow_outflow_status}; przyczyna nieustalona.` : undefined,
     result.verification.reason,
-  ].filter((value): value is string => Boolean(value?.trim())).map(value => compact(value)).slice(0, 5)
+  ].filter((value): value is string => Boolean(value?.trim())).map(value => compact(value)).slice(0, 6)
 
   if (!shortSummary.length) {
     shortSummary.push(...result.observations.slice(0, 3).map(item => compact(item.statement)))
@@ -96,6 +111,14 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
       candidateFeatures: hydrology.candidate_features.slice(0, 8).map(item => compact(item, 220)),
       mainAndTributaryContext: compact(hydrology.main_and_tributary_context),
       causeStatus: hydrology.cause_status,
+    } : undefined,
+    waterExtrema: waterExtrema ? {
+      status: waterExtrema.status,
+      mostVisibleWaterYear: waterExtrema.most_visible_water_year,
+      leastVisibleWaterYear: waterExtrema.least_visible_water_year,
+      comparedYears: waterExtrema.compared_years,
+      method: waterExtrema.method,
+      basis: compact(waterExtrema.basis),
     } : undefined,
     imagery: {
       inspectedByModel: result.imagery.visuallyInspectedByModel,
@@ -161,6 +184,30 @@ function isArchiveEntry(value: unknown): value is ResearchArchiveEntry {
     && typeof value.hydrology.mainAndTributaryContext === 'string'
     && typeof value.hydrology.causeStatus === 'string'
   )
+  let waterExtremaValid = value.waterExtrema === undefined
+  if (isRecord(value.waterExtrema)
+    && Array.isArray(value.waterExtrema.comparedYears)
+    && value.waterExtrema.comparedYears.every(Number.isInteger)
+    && value.waterExtrema.method === 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES'
+    && typeof value.waterExtrema.basis === 'string'
+    && value.waterExtrema.basis.trim().length > 0) {
+    const comparedYears = value.waterExtrema.comparedYears as number[]
+    const periodContainsComparedYears = Number.isInteger(period.startYear)
+      && Number.isInteger(period.endYear)
+      && comparedYears.every(year => year >= (period.startYear as number) && year <= (period.endYear as number))
+    if (value.waterExtrema.status === 'ESTABLISHED') {
+      waterExtremaValid = Number.isInteger(value.waterExtrema.mostVisibleWaterYear)
+        && Number.isInteger(value.waterExtrema.leastVisibleWaterYear)
+        && value.waterExtrema.mostVisibleWaterYear !== value.waterExtrema.leastVisibleWaterYear
+        && comparedYears.length >= 2
+        && periodContainsComparedYears
+        && comparedYears.includes(value.waterExtrema.mostVisibleWaterYear as number)
+        && comparedYears.includes(value.waterExtrema.leastVisibleWaterYear as number)
+    } else if (value.waterExtrema.status === 'INSUFFICIENT_EVIDENCE') {
+      waterExtremaValid = value.waterExtrema.mostVisibleWaterYear === null
+        && value.waterExtrema.leastVisibleWaterYear === null
+    }
+  }
 
   return value.schemaVersion === '1.0'
     && typeof value.id === 'string'
@@ -184,6 +231,7 @@ function isArchiveEntry(value: unknown): value is ResearchArchiveEntry {
     && observationsValid
     && hypothesesValid
     && hydrologyValid
+    && waterExtremaValid
     && isFiniteNumber(imagery.inspectedByModel)
     && isFiniteNumber(imagery.galleryImages)
     && isFiniteNumber(imagery.requestedYears)

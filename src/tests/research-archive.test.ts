@@ -35,6 +35,14 @@ function result(runId: string): HazardInvestigationResult {
             main_and_tributary_context: 'The main waterbody is visible; flow direction is not established.',
             required_checks: ['Verify official hydrography.'],
             cause_status: 'NOT_ESTABLISHED_FROM_SUPPLIED_EVIDENCE',
+            visible_water_extrema: {
+              status: 'ESTABLISHED',
+              most_visible_water_year: 2000,
+              least_visible_water_year: 2026,
+              compared_years: [2000, 2012, 2026],
+              method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES',
+              basis: 'Three matched-season images show the largest and smallest relative visible-water extents.',
+            },
           },
         },
       },
@@ -65,6 +73,9 @@ describe('research archive', () => {
     expect(archive[0].displaySettings.evidenceMeaning).toBe('DISPLAY_ONLY_NOT_MODEL_INPUT')
     expect(archive[0].hydrology?.waterChangeState).toBe('VISIBLE_WATER_REDUCTION_CANDIDATE')
     expect(archive[0].hydrology?.causeStatus).toBe('NOT_ESTABLISHED_FROM_SUPPLIED_EVIDENCE')
+    expect(archive[0].waterExtrema?.mostVisibleWaterYear).toBe(2000)
+    expect(archive[0].waterExtrema?.leastVisibleWaterYear).toBe(2026)
+    expect(archive[0].shortSummary.some(item => item.includes('najwięcej: 2000'))).toBe(true)
     expect(JSON.stringify(archive[0])).not.toContain('image.jpg')
   })
 
@@ -92,6 +103,18 @@ describe('research archive', () => {
       hypotheses: [],
     }]))
 
+    expect(readResearchArchive()).toEqual([])
+  })
+
+  it('rejects a corrupted established water ranking', () => {
+    const entry = createResearchArchiveEntry(result('run-corrupt'), DEFAULT_IMAGERY_DISPLAY)
+    entry.waterExtrema = {
+      ...entry.waterExtrema!,
+      mostVisibleWaterYear: null,
+      leastVisibleWaterYear: 2026,
+      comparedYears: [2000, 2026],
+    }
+    localStorage.setItem(RESEARCH_ARCHIVE_KEY, JSON.stringify([entry]))
     expect(readResearchArchive()).toEqual([])
   })
 })

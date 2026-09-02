@@ -1,8 +1,30 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { HAZARD_LABELS, type HazardType } from '../integrations/terra/hazardInvestigation'
-import { readResearchArchive } from '../lib/researchArchive'
+import { readResearchArchive, type ResearchArchiveEntry } from '../lib/researchArchive'
 import { StatusBadge } from './StatusBadge'
+
+function ArchivedWaterExtrema({ entry }: { entry: ResearchArchiveEntry }) {
+  const waterHazard = entry.hazards.some(hazard => ['water-loss', 'flow-obstruction', 'flood'].includes(hazard))
+  if (!waterHazard) return null
+  const extrema = entry.waterExtrema ?? {
+    status: 'INSUFFICIENT_EVIDENCE' as const,
+    mostVisibleWaterYear: null,
+    leastVisibleWaterYear: null,
+    comparedYears: [],
+    basis: 'Starszy wpis nie zawiera rankingu lat. Uruchom badanie ponownie, aby zastosować bramkę TP26.',
+  }
+  const established = extrema.status === 'ESTABLISHED'
+  return <section className="lab-water-extrema" aria-label="Ranking lat widocznej wody">
+    <div className="lab-section-title"><h3>Najwięcej i najmniej widocznej wody</h3><StatusBadge value={established ? 'COMPARABLE YEARS' : 'INSUFFICIENT DATA'} /></div>
+    <div className="lab-metrics lab-water-extrema-metrics">
+      <article><b>{established ? extrema.mostVisibleWaterYear : 'nie ustalono'}</b><span>najwięcej widocznej wody</span></article>
+      <article><b>{established ? extrema.leastVisibleWaterYear : 'nie ustalono'}</b><span>najmniej widocznej wody</span></article>
+      <article><b>{extrema.comparedYears.length}</b><span>lat dopuszczonych do porównania</span></article>
+    </div>
+    <p className="lab-note">{extrema.basis}</p>
+  </section>
+}
 
 export function ResearchArchive() {
   const [entries, setEntries] = useState(() => readResearchArchive())
@@ -31,6 +53,7 @@ export function ResearchArchive() {
       {entries.map(entry => <article className="card lab-archive-entry" key={entry.id}>
         <div className="lab-section-title"><div><p className="eyebrow">{new Date(entry.savedAt).toLocaleString('pl-PL')}</p><h2>{entry.title}</h2></div><div className="lab-status-stack"><StatusBadge value={entry.classification} /><StatusBadge value={entry.verificationState} /></div></div>
         <p><b>AOI:</b> promień {entry.area.radiusKm} km · {entry.period.startYear}–{entry.period.endYear} · {entry.period.season}</p>
+        <ArchivedWaterExtrema entry={entry} />
         <ul>{entry.shortSummary.map((item, index) => <li key={`${entry.id}-summary-${index}`}>{item}</li>)}</ul>
         {entry.hydrology ? <details><summary>Dopływy, odpływy i ubytek wody</summary>
           <p><b>Zmiana wody:</b> {entry.hydrology.waterChangeState}</p>

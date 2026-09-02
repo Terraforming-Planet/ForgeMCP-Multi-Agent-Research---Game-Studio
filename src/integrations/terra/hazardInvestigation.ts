@@ -43,6 +43,15 @@ export type HazardInvestigationInput = {
   referenceQuery?: string
 }
 
+export type VisibleWaterExtrema = {
+  status: 'ESTABLISHED' | 'INSUFFICIENT_EVIDENCE'
+  most_visible_water_year: number | null
+  least_visible_water_year: number | null
+  compared_years: number[]
+  method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES'
+  basis: string
+}
+
 export type HydrologyScreening = {
   water_change_state: 'VISIBLE_WATER_REDUCTION_CANDIDATE' | 'VISIBLE_WATER_INCREASE_CANDIDATE' | 'NO_VISIBLE_CHANGE_ESTABLISHED' | 'INSUFFICIENT_EVIDENCE'
   temporal_basis: string
@@ -51,6 +60,7 @@ export type HydrologyScreening = {
   main_and_tributary_context: string
   required_checks: string[]
   cause_status: 'NOT_ESTABLISHED_FROM_SUPPLIED_EVIDENCE'
+  visible_water_extrema?: VisibleWaterExtrema
 }
 
 export type WorkerAreaAnalysis = {
@@ -59,8 +69,8 @@ export type WorkerAreaAnalysis = {
   area: { place_name: string | null; latitude: number; longitude: number; radius_km: number }
   period: { start_date: string; end_date: string }
   depth: 'quick' | 'deep'
-  preview_images: Array<{ date: string; source: string; url: string }>
-  analysis_images?: Array<{ date: string; source: string; url: string }>
+  preview_images: Array<{ date: string; source: string; url: string; high_resolution_aoi?: boolean }>
+  analysis_images?: Array<{ date: string; source: string; url: string; high_resolution_aoi?: boolean }>
   ai_visual_image_count: number
   visual_preflight_warnings?: string[]
   landsat_catalog: {
@@ -86,6 +96,20 @@ export type WorkerAreaAnalysis = {
     usage: string
     training_3: { streamed_windows: number; research_region_count: number; environmental_ground_truth: false }
     training_4: { unique_real_scientific_pairs: number; validation_pairs: number; steps: number; checkpoint_loaded_by_worker: false; environmental_ground_truth: false }
+  }
+  tp26_protocol?: {
+    schema: string
+    role: string
+    source_ladder: Array<{ source: string; role: string; nominal_resolution: string; runtime_state?: string }>
+    extrema_gate: string
+  }
+  water_extrema_readiness?: {
+    status: 'INSUFFICIENT_RANKING_ELIGIBLE_YEARS' | 'MODEL_COMPARABILITY_GATE_APPLIED'
+    small_waterbody_mode: boolean
+    requires_high_resolution_aoi?: boolean
+    high_resolution_aoi_images: number
+    high_resolution_aoi_years?: number
+    visually_supplied_images: number
   }
   evidence_policy: string
 }
@@ -247,6 +271,57 @@ export const HAZARD_LABELS: Record<HazardType, string> = {
 }
 
 const WATER_HAZARDS = new Set<HazardType>(['water-loss', 'flow-obstruction', 'flood'])
+
+export function getVisibleWaterExtrema(result: HazardInvestigationResult): VisibleWaterExtrema | null {
+  if (!result.hazards.some(hazard => WATER_HAZARDS.has(hazard))) return null
+  const value = result.imagery.analysis?.analysis.hydrology_screening?.visible_water_extrema
+  if (!value || !Array.isArray(value.compared_years) || typeof value.basis !== 'string') {
+    return {
+      status: 'INSUFFICIENT_EVIDENCE',
+      most_visible_water_year: null,
+      least_visible_water_year: null,
+      compared_years: [],
+      method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES',
+      basis: result.imagery.visuallyInspectedByModel > 0
+        ? 'Ta wersja odpowiedzi nie zawiera zweryfikowanego rankingu lat. Uruchom badanie ponownie po aktualizacji Workera.'
+        : 'Nie przeanalizowano porównywalnych obrazów, więc nie wolno wskazać roku maksimum ani minimum wody.',
+    }
+  }
+  const analysisImages = result.imagery.analysis?.analysis_images ?? result.imagery.analysis?.preview_images ?? []
+  const rankingEligibleYears = [...new Set(analysisImages
+    .filter(image => image.high_resolution_aoi === true)
+    .map(image => Number(image.date.slice(0, 4)))
+    .filter(Number.isInteger))]
+  const enforceTp26ImageYears = result.imagery.analysis?.tp26_protocol?.schema.startsWith('tp26-') === true
+    || result.imagery.analysis?.water_extrema_readiness?.requires_high_resolution_aoi === true
+  const periodStart = Number.isInteger(result.period?.startYear) ? result.period.startYear : Number.MIN_SAFE_INTEGER
+  const periodEnd = Number.isInteger(result.period?.endYear) ? result.period.endYear : Number.MAX_SAFE_INTEGER
+  const years = [...new Set(value.compared_years.filter(year => Number.isInteger(year)
+    && year >= periodStart
+    && year <= periodEnd))].slice(0, 8)
+  const rankingYearsValid = !enforceTp26ImageYears || (years.length >= 2 && years.every(year => rankingEligibleYears.includes(year)))
+  const basis = value.basis.trim()
+  const methodValid = value.method === 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES'
+  const established = value.status === 'ESTABLISHED'
+    && Number.isInteger(value.most_visible_water_year)
+    && Number.isInteger(value.least_visible_water_year)
+    && value.most_visible_water_year !== value.least_visible_water_year
+    && years.includes(value.most_visible_water_year as number)
+    && years.includes(value.least_visible_water_year as number)
+    && rankingYearsValid
+    && methodValid
+    && basis.length > 0
+  return established ? { ...value, basis, compared_years: years } : {
+    status: 'INSUFFICIENT_EVIDENCE',
+    most_visible_water_year: null,
+    least_visible_water_year: null,
+    compared_years: years,
+    method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES',
+    basis: value.status === 'ESTABLISHED' && !rankingYearsValid
+      ? 'Bramka TP26 w przeglądarce odrzuciła ranking: każdy porównany rok musi występować w wejściach AOI wysokiej rozdzielczości faktycznie przekazanych do analizy.'
+      : basis || 'Brak wystarczających porównywalnych obrazów do rankingu lat.',
+  }
+}
 
 const SEASON_DATES: Record<InvestigationSeason, [string, string]> = {
   all: ['01-01', '12-31'],
