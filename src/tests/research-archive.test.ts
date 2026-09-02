@@ -89,6 +89,59 @@ describe('research archive', () => {
     expect(readResearchArchive().map(item => item.runId)).toEqual(['run-backup'])
   })
 
+  it('archives the regional patrol manifest and its honest sparse-coverage limit', () => {
+    const patrolResult = result('run-patrol')
+    if (!patrolResult.imagery.analysis) throw new Error('Missing analysis fixture.')
+    patrolResult.imagery.analysis.regional_patrol = {
+      status: 'COMPLETE_SPARSE_SCREENING',
+      requested_tiles: 20,
+      generated_tiles: 20,
+      inspected_tiles: 20,
+      frame_width_km: 1,
+      source_date: '2026-08-20',
+      source: 'NASA HLS S30',
+      nominal_resolution_m: 30,
+      aoi_radius_km: 20,
+      aoi_area_km2: 1256.64,
+      nominal_sampled_area_upper_bound_km2: 20,
+      nominal_coverage_upper_bound_percent: 1.59,
+      uninspected_area_lower_bound_percent: 98.41,
+      full_coverage: false,
+      selection_method: 'DETERMINISTIC_GOLDEN_ANGLE_SPATIAL_STRATIFICATION_NOT_HYDROGRAPHY_TARGETED',
+      temporal_scope: 'ONE_RECENT_HLS_DATE_SPATIAL_SCREENING',
+      temporal_change_supported_by_patrol_alone: false,
+      tile_manifest: Array.from({ length: 20 }, (_, index) => ({
+        tile_id: `P${String(index + 1).padStart(2, '0')}`,
+        latitude: 50 + index * 0.001,
+        longitude: 20 + index * 0.001,
+        status: 'INSPECTED_BY_MODEL' as const,
+      })),
+      limitations: ['Sparse one-date sampling.'],
+    }
+    patrolResult.imagery.analysis.analysis.regional_patrol_assessment = {
+      status: 'PARTIAL_TILE_REVIEW',
+      overview: 'One visible-water candidate was retained for review.',
+      inspected_tile_ids: ['P01'],
+      tiles_with_visible_open_water: ['P01'],
+      tiles_with_wetland_or_wet_soil: [],
+      tiles_with_possible_channel: ['P01'],
+      tiles_with_cloud_shadow_or_no_data: [],
+      tile_findings: [{ tile_id: 'P01', surface_class: 'OPEN_WATER', hydrology_feature: 'MAIN_WATERBODY', observation: 'Visible water candidate.', confidence: 'medium' }],
+      limitations: ['One-date sample.'],
+    }
+
+    saveResearchArchiveEntry(createResearchArchiveEntry(patrolResult, DEFAULT_IMAGERY_DISPLAY))
+    const [entry] = readResearchArchive()
+    expect(entry.regionalPatrol?.inspectedTiles).toBe(20)
+    expect(entry.regionalPatrol?.coverageUpperBoundPercent).toBe(1.59)
+    expect(entry.regionalPatrol?.uninspectedAreaLowerBoundPercent).toBe(98.41)
+    expect(entry.regionalPatrol?.fullCoverage).toBe(false)
+    expect(entry.regionalPatrol?.tileManifest).toHaveLength(20)
+    expect(entry.regionalPatrol?.assessmentStatus).toBe('PARTIAL_TILE_REVIEW')
+    expect(entry.regionalPatrol?.tileFindings?.[0].tileId).toBe('P01')
+    expect(entry.shortSummary.some(item => item.includes('nie jest to pełne pokrycie'))).toBe(true)
+  })
+
   it('fails closed on malformed browser data', () => {
     localStorage.setItem(RESEARCH_ARCHIVE_KEY, '{not-json')
     expect(readResearchArchive()).toEqual([])

@@ -188,4 +188,68 @@ describe('LabTerra image gallery resilience', () => {
     expect(screen.getByAltText('Staw TEST 001 w stałym kadrze historycznym z 2000 roku')).toBeInTheDocument()
     expect(screen.getByAltText('Basen stawu TEST 001 w tym samym stałym kadrze w 2026 roku')).toBeInTheDocument()
   })
+
+  it('offers a separate twenty-frame regional patrol and shows its truthful coverage limit', async () => {
+    const patrolResult = investigationResult()
+    if (!patrolResult.imagery.analysis) throw new Error('Missing analysis fixture.')
+    patrolResult.imagery.analysis.regional_patrol = {
+      status: 'COMPLETE_SPARSE_SCREENING',
+      requested_tiles: 20,
+      generated_tiles: 20,
+      inspected_tiles: 20,
+      frame_width_km: 1,
+      source_date: '2026-08-20',
+      source: 'NASA HLS S30 · ESA Sentinel-2 MSI · 30 m NBAR RGB',
+      nominal_resolution_m: 30,
+      aoi_radius_km: 20,
+      aoi_area_km2: 1256.64,
+      nominal_sampled_area_upper_bound_km2: 20,
+      nominal_coverage_upper_bound_percent: 1.59,
+      uninspected_area_lower_bound_percent: 98.41,
+      full_coverage: false,
+      selection_method: 'DETERMINISTIC_GOLDEN_ANGLE_SPATIAL_STRATIFICATION_NOT_HYDROGRAPHY_TARGETED',
+      temporal_scope: 'ONE_RECENT_HLS_DATE_SPATIAL_SCREENING',
+      temporal_change_supported_by_patrol_alone: false,
+      tile_manifest: Array.from({ length: 20 }, (_, index) => ({
+        tile_id: `P${String(index + 1).padStart(2, '0')}`,
+        latitude: 12.775 + index * 0.001,
+        longitude: 17.564 + index * 0.001,
+        status: 'INSPECTED_BY_MODEL' as const,
+      })),
+      limitations: ['Sparse samples only.'],
+    }
+    patrolResult.imagery.analysis.analysis.regional_patrol_assessment = {
+      status: 'PARTIAL_TILE_REVIEW',
+      overview: 'Dwa kadry zawierają kandydatów wymagających dalszej kontroli.',
+      inspected_tile_ids: ['P01', 'P02'],
+      tiles_with_visible_open_water: ['P01'],
+      tiles_with_wetland_or_wet_soil: ['P02'],
+      tiles_with_possible_channel: ['P01', 'P02'],
+      tiles_with_cloud_shadow_or_no_data: [],
+      tile_findings: [
+        { tile_id: 'P01', surface_class: 'OPEN_WATER', hydrology_feature: 'MAIN_WATERBODY', observation: 'Widoczne otwarte lustro wody.', confidence: 'medium' },
+        { tile_id: 'P02', surface_class: 'WETLAND_OR_WET_SOIL', hydrology_feature: 'POSSIBLE_INFLOW', observation: 'Możliwy boczny dopływ wymaga sprawdzenia.', confidence: 'low' },
+      ],
+      limitations: ['Próbki z jednej daty.'],
+    }
+    const execute = vi.fn().mockResolvedValue({ state: 'WARNING', verification: 'WARNING', data: patrolResult })
+    vi.mocked(getTool).mockReturnValue({ execute } as never)
+
+    render(<MemoryRouter><LabMcp /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('radio', { name: /Patrol regionalny · 20 zbliżeń/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Uruchom agentów i analizę wieloletnią' }))
+
+    await screen.findByRole('heading', { name: 'Co naprawdę obejrzał agent' })
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      spatialMode: 'regional-patrol',
+      patrolTileCount: 20,
+      patrolFrameWidthKm: 1,
+      depth: 'deep',
+    }))
+    expect(screen.getByText('≤ 1.59%')).toBeInTheDocument()
+    expect(screen.getByText(/Co najmniej 98.41% AOI pozostaje poza tymi kadrami/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Wynik przeglądu kadr po kolei' })).toBeInTheDocument()
+    expect(screen.getByText('Dwa kadry zawierają kandydatów wymagających dalszej kontroli.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Czego ten przebieg nadal nie zrobił' })).toBeInTheDocument()
+  })
 })

@@ -54,6 +54,10 @@ export type PreviewImage = {
   evidence_role?: string | null
   nominal_resolution_m?: number | null
   cloud_cover?: number | null
+  patrol_tile_id?: string | null
+  tile_center_latitude?: number | null
+  tile_center_longitude?: number | null
+  tile_frame_width_km?: number | null
 }
 
 export function selectModelPreviewImages(images: PreviewImage[], inspectedCount: number) {

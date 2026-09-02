@@ -43,6 +43,24 @@ export type ResearchArchiveEntry = {
     method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES'
     basis: string
   }
+  regionalPatrol?: {
+    status: string
+    requestedTiles: number
+    inspectedTiles: number
+    frameWidthKm: number
+    sourceDate: string | null
+    nominalResolutionM: number | null
+    aoiAreaKm2: number
+    sampledAreaUpperBoundKm2: number
+    coverageUpperBoundPercent: number
+    uninspectedAreaLowerBoundPercent: number
+    fullCoverage: false
+    temporalChangeSupportedByPatrolAlone: false
+    tileManifest: Array<{ tileId: string; latitude: number; longitude: number; status: string }>
+    assessmentStatus?: string
+    assessmentOverview?: string
+    tileFindings?: Array<{ tileId: string; surfaceClass: string; hydrologyFeature: string; observation: string; confidence: string }>
+  }
   test001Finding?: {
     focus: { latitude: number; longitude: number; frameWidthM: number }
     state: 'NEAR_TOTAL_HISTORICAL_OPEN_WATER_STATE_TRANSITION_STRONGLY_SUPPORTED'
@@ -75,6 +93,8 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
   const hydrology = visual?.hydrology_screening
   const waterExtrema = getVisibleWaterExtrema(result)
   const test001 = result.test001Context?.evidence.recordedResult
+  const patrol = result.imagery.analysis?.regional_patrol
+  const patrolAssessment = visual?.regional_patrol_assessment
   const waterExtremaSummary = test001 ? undefined : waterExtrema?.status === 'ESTABLISHED'
     ? `Widoczna woda — najwięcej: ${waterExtrema.most_visible_water_year}; najmniej: ${waterExtrema.least_visible_water_year}; porównane lata: ${waterExtrema.compared_years.join(', ')}.`
     : waterExtrema
@@ -88,6 +108,7 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
     test001 ? undefined : visual?.water_assessment,
     waterExtremaSummary,
     hydrology ? `Woda: ${hydrology.water_change_state}; dopływy/odpływy: ${hydrology.inflow_outflow_status}; przyczyna nieustalona.` : undefined,
+    patrol ? `Patrol regionalny: ${patrol.inspected_tiles}/${patrol.requested_tiles} zbliżeń ${patrol.frame_width_km.toFixed(1)} km; górna granica pokrycia AOI ${patrol.nominal_coverage_upper_bound_percent.toFixed(2)}%; nie jest to pełne pokrycie ani szereg czasowy.` : undefined,
     result.verification.reason,
   ].filter((value): value is string => Boolean(value?.trim())).map(value => compact(value)).slice(0, 8)
 
@@ -136,6 +157,30 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
       comparedYears: waterExtrema.compared_years,
       method: waterExtrema.method,
       basis: compact(waterExtrema.basis),
+    } : undefined,
+    regionalPatrol: patrol ? {
+      status: patrol.status,
+      requestedTiles: patrol.requested_tiles,
+      inspectedTiles: patrol.inspected_tiles,
+      frameWidthKm: patrol.frame_width_km,
+      sourceDate: patrol.source_date,
+      nominalResolutionM: patrol.nominal_resolution_m,
+      aoiAreaKm2: patrol.aoi_area_km2,
+      sampledAreaUpperBoundKm2: patrol.nominal_sampled_area_upper_bound_km2,
+      coverageUpperBoundPercent: patrol.nominal_coverage_upper_bound_percent,
+      uninspectedAreaLowerBoundPercent: patrol.uninspected_area_lower_bound_percent,
+      fullCoverage: false,
+      temporalChangeSupportedByPatrolAlone: false,
+      tileManifest: patrol.tile_manifest.map(tile => ({ tileId: tile.tile_id, latitude: tile.latitude, longitude: tile.longitude, status: tile.status })),
+      assessmentStatus: patrolAssessment?.status,
+      assessmentOverview: patrolAssessment?.overview ? compact(patrolAssessment.overview, 520) : undefined,
+      tileFindings: patrolAssessment?.tile_findings.map(finding => ({
+        tileId: finding.tile_id,
+        surfaceClass: finding.surface_class,
+        hydrologyFeature: finding.hydrology_feature,
+        observation: compact(finding.observation, 360),
+        confidence: finding.confidence,
+      })),
     } : undefined,
     test001Finding: test001 ? {
       focus: {
@@ -263,6 +308,42 @@ function isArchiveEntry(value: unknown): value is ResearchArchiveEntry {
     && value.test001Finding.causeStatus === 'NOT_ESTABLISHED'
     && value.test001Finding.alertStatus === 'HIGH_PRIORITY_MONITORING_ANOMALY_REQUIRES_INVESTIGATION'
   )
+  const regionalPatrolValid = value.regionalPatrol === undefined || (
+    isRecord(value.regionalPatrol)
+    && typeof value.regionalPatrol.status === 'string'
+    && isFiniteNumber(value.regionalPatrol.requestedTiles)
+    && isFiniteNumber(value.regionalPatrol.inspectedTiles)
+    && isFiniteNumber(value.regionalPatrol.frameWidthKm)
+    && (value.regionalPatrol.sourceDate === null || typeof value.regionalPatrol.sourceDate === 'string')
+    && (value.regionalPatrol.nominalResolutionM === null || isFiniteNumber(value.regionalPatrol.nominalResolutionM))
+    && isFiniteNumber(value.regionalPatrol.aoiAreaKm2)
+    && isFiniteNumber(value.regionalPatrol.sampledAreaUpperBoundKm2)
+    && isFiniteNumber(value.regionalPatrol.coverageUpperBoundPercent)
+    && isFiniteNumber(value.regionalPatrol.uninspectedAreaLowerBoundPercent)
+    && value.regionalPatrol.fullCoverage === false
+    && value.regionalPatrol.temporalChangeSupportedByPatrolAlone === false
+    && Array.isArray(value.regionalPatrol.tileManifest)
+    && value.regionalPatrol.tileManifest.every(item => (
+      isRecord(item)
+      && typeof item.tileId === 'string'
+      && isFiniteNumber(item.latitude)
+      && isFiniteNumber(item.longitude)
+      && typeof item.status === 'string'
+    ))
+    && (value.regionalPatrol.assessmentStatus === undefined || typeof value.regionalPatrol.assessmentStatus === 'string')
+    && (value.regionalPatrol.assessmentOverview === undefined || typeof value.regionalPatrol.assessmentOverview === 'string')
+    && (value.regionalPatrol.tileFindings === undefined || (
+      Array.isArray(value.regionalPatrol.tileFindings)
+      && value.regionalPatrol.tileFindings.every(item => (
+        isRecord(item)
+        && typeof item.tileId === 'string'
+        && typeof item.surfaceClass === 'string'
+        && typeof item.hydrologyFeature === 'string'
+        && typeof item.observation === 'string'
+        && typeof item.confidence === 'string'
+      ))
+    ))
+  )
 
   return value.schemaVersion === '1.0'
     && typeof value.id === 'string'
@@ -288,6 +369,7 @@ function isArchiveEntry(value: unknown): value is ResearchArchiveEntry {
     && hydrologyValid
     && waterExtremaValid
     && test001FindingValid
+    && regionalPatrolValid
     && isFiniteNumber(imagery.inspectedByModel)
     && isFiniteNumber(imagery.galleryImages)
     && isFiniteNumber(imagery.requestedYears)
