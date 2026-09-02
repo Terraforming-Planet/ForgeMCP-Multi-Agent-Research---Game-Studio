@@ -13,6 +13,9 @@ export interface ResearchStationPreset {
   material: string
   texture: string
   gameApplication: string
+  implementedWork: string[]
+  fieldProgram: string[]
+  evidenceOutputs: string[]
   publicUrl: string
   status: string
   truthBoundary: string
@@ -42,7 +45,10 @@ export const RESEARCH_STATION_PRESETS: ResearchStationPreset[] = [
     material: 'Frosted glass + brushed titanium',
     texture: 'Cryo facets · translucent ice grain',
     gameApplication: 'Icy translucent board layers and cyan navigation light',
-    publicUrl: 'https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/arctic-90n/',
+    implementedWork: ['Local Three.js ice geometry and scenario controls', 'Screening formulae for drift, contact and ridge proxies', 'Browser-only experiment state; no sensor feed'],
+    fieldProgram: ['Measure GNSS position, weather, radiation, snow, freeboard and ice thickness', 'Collect CTD, ADCP and upward-looking sonar observations', 'Co-locate measurements with ICESat-2, CryoSat, Sentinel and SMOS products'],
+    evidenceOutputs: ['timestamped station log', 'satellite/field co-location table', 'melt-pond, crack and ridging review queue'],
+    publicUrl: 'https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/arctic-90n/real-ice-lab.html',
     status: 'CONCEPT + 3D PROXY',
     truthBoundary: 'The source station is a research-engineering concept. Its 3D ice lab is a simplified scenario proxy, not an operational forecast or structural calculation.',
     terraPresetAvailable: true,
@@ -65,6 +71,9 @@ export const RESEARCH_STATION_PRESETS: ResearchStationPreset[] = [
     material: 'Sandstone composite + copper',
     texture: 'Wind-cut strata · warm mineral grain',
     gameApplication: 'Sandstone board, copper paths and amber legal-move glow',
+    implementedWork: ['Fixed-date NASA GIBS/MODIS tile lookup', 'Copernicus DEM GLO-90 plus NASA OPERA RTC-S1 search', 'Priority-Flood, D8, 1°/3° stability checks, eight tests and JSON/CSV exports'],
+    fieldProgram: ['Verify candidate channels with geology and stratigraphy', 'Measure groundwater and infiltration', 'Reject or confirm image-led hypotheses with ground truth'],
+    evidenceOutputs: ['ranked candidate drainage paths', 'resolution-stability comparison', 'field-verification plan with provenance'],
     publicUrl: 'https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/sahara-station/',
     status: 'PROCEDURAL 3D SIMULATOR',
     truthBoundary: 'Terrain, water and vegetation changes inside the source sandbox are synthetic scenarios, not observed future states.',
@@ -88,6 +97,9 @@ export const RESEARCH_STATION_PRESETS: ResearchStationPreset[] = [
     material: 'Deep-glass ceramic + marine alloy',
     texture: 'Bathymetric waves · wet iridescence',
     gameApplication: 'Deep-blue board depth, teal current lines and reflective pieces',
+    implementedWork: ['Procedural trench and bathymetry sandbox', 'Local JSON research workspace and static source registry', 'Synthetic boundary and event-marker exploration'],
+    fieldProgram: ['Build a bathymetry data-gap index by resolution, date, source and uncertainty', 'Fuse GEBCO context with verified seismic records', 'Plan multibeam-sonar or AUV routes and QA returned surveys'],
+    evidenceOutputs: ['survey-priority map', 'AUV/sonar route brief', 'bathymetry QA and uncertainty record'],
     publicUrl: 'https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/ocean-station/',
     status: 'PROCEDURAL WEBGL SIMULATOR',
     truthBoundary: 'The source sandbox is not a real intervention, earthquake-control system or measured local bathymetric survey.',
@@ -111,6 +123,9 @@ export const RESEARCH_STATION_PRESETS: ResearchStationPreset[] = [
     material: 'Obsidian glass + emissive alloy',
     texture: 'Orbital grid · violet data filaments',
     gameApplication: 'Cosmic grid, orbital rings and violet/cyan LEDColor pieces',
+    implementedWork: ['Stored NASA/JPL Horizons planet vectors and Earth–Moon distance', 'Current SOHO C2/C3 image URLs', 'Optional six-frame Helioviewer/OpenAI candidate screen and deterministic 512-cell addressing'],
+    fieldProgram: ['Refresh official ephemeris and solar-observation snapshots', 'Review every machine candidate against source frames', 'Record uncertainty and require human verification before any finding'],
+    evidenceOutputs: ['timestamped orbital snapshot', 'six-frame candidate evidence pack', 'human-reviewed 512-cell observation ledger'],
     publicUrl: 'https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/earth-space-512/',
     status: 'EARTH–SPACE OBSERVATION LAB',
     truthBoundary: 'AI comet candidates and orbital-cell observations require human verification; they are not confirmed discoveries or climate alerts.',

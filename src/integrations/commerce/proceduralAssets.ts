@@ -7,6 +7,15 @@ type Mesh = {
   indices: number[]
 }
 
+export type ProceduralPreset =
+  | 'earth-guardian'
+  | 'facet-rook'
+  | 'crayon-knight'
+  | 'classic-pawn'
+  | 'led-board'
+  | 'research-station'
+  | 'texture-tile'
+
 export interface ProceduralAssetBundle {
   status: 'LOCAL_PROCEDURAL_ASSET_READY'
   generator: 'ForgeMCP procedural exporter v1'
@@ -15,6 +24,18 @@ export interface ProceduralAssetBundle {
   downloadReady: true
   filePersisted: false
   manufacturingReady: false
+  renderSource: 'EXPORTED_GLTF_GEOMETRY'
+  geometryFingerprint: string
+  preview: {
+    preset: ProceduralPreset
+    label: string
+    promptMatched: boolean
+    primaryColor: string
+    secondaryColor: string
+    positions: number[]
+    normals: number[]
+    indices: number[]
+  }
   model: {
     filename: string
     mimeType: 'model/gltf+json'
@@ -42,6 +63,8 @@ export interface ProceduralAssetBundle {
     bufferViewsAligned: boolean
     pngSignatureValid: boolean
     specificationLinked: boolean
+    presetResolved: boolean
+    geometryFingerprintLinked: boolean
     result: 'GENERATOR_CHECKS_PASS' | 'GENERATOR_CHECKS_FAIL'
   }
   truthBoundary: string
@@ -79,8 +102,9 @@ function addSphere(mesh: Mesh, center: [number, number, number], radius: [number
       const nx = Math.sin(theta) * Math.cos(phi)
       const ny = Math.cos(theta)
       const nz = Math.sin(theta) * Math.sin(phi)
+      const normalLength = Math.hypot(nx / radius[0], ny / radius[1], nz / radius[2]) || 1
       mesh.positions.push(center[0] + nx * radius[0], center[1] + ny * radius[1], center[2] + nz * radius[2])
-      mesh.normals.push(nx, ny, nz)
+      mesh.normals.push((nx / radius[0]) / normalLength, (ny / radius[1]) / normalLength, (nz / radius[2]) / normalLength)
       mesh.texcoords.push(u, 1 - v)
     }
   }
@@ -115,28 +139,166 @@ function addBox(mesh: Mesh, center: [number, number, number], size: [number, num
   }
 }
 
-function createMesh(kind: AssetKind, scaleMm: number): Mesh {
+function addCylinder(
+  mesh: Mesh,
+  center: [number, number, number],
+  height: number,
+  bottomRadius: number,
+  topRadius = bottomRadius,
+  segments = 18,
+) {
+  const [cx, cy, cz] = center
+  const half = height / 2
+  const sideBase = mesh.positions.length / 3
+  for (let index = 0; index <= segments; index += 1) {
+    const u = index / segments
+    const angle = u * Math.PI * 2
+    const cosine = Math.cos(angle)
+    const sine = Math.sin(angle)
+    mesh.positions.push(cx + cosine * bottomRadius, cy - half, cz + sine * bottomRadius)
+    mesh.positions.push(cx + cosine * topRadius, cy + half, cz + sine * topRadius)
+    mesh.normals.push(cosine, 0, sine, cosine, 0, sine)
+    mesh.texcoords.push(u, 0, u, 1)
+  }
+  for (let index = 0; index < segments; index += 1) {
+    const first = sideBase + index * 2
+    mesh.indices.push(first, first + 1, first + 2, first + 1, first + 3, first + 2)
+  }
+
+  for (const [y, radius, normal, reverse] of [
+    [cy - half, bottomRadius, -1, true],
+    [cy + half, topRadius, 1, false],
+  ] as Array<[number, number, number, boolean]>) {
+    const base = mesh.positions.length / 3
+    mesh.positions.push(cx, y, cz)
+    mesh.normals.push(0, normal, 0)
+    mesh.texcoords.push(0.5, 0.5)
+    for (let index = 0; index <= segments; index += 1) {
+      const angle = (index / segments) * Math.PI * 2
+      mesh.positions.push(cx + Math.cos(angle) * radius, y, cz + Math.sin(angle) * radius)
+      mesh.normals.push(0, normal, 0)
+      mesh.texcoords.push(0.5 + Math.cos(angle) * 0.5, 0.5 + Math.sin(angle) * 0.5)
+    }
+    for (let index = 0; index < segments; index += 1) {
+      if (reverse) mesh.indices.push(base, base + index + 2, base + index + 1)
+      else mesh.indices.push(base, base + index + 1, base + index + 2)
+    }
+  }
+}
+
+const promptIncludes = (prompt: string, expressions: string[]) => expressions.some(value => prompt.includes(value))
+
+export function selectProceduralPreset(specification: Pick<AssetSpecification, 'assetKind' | 'piecePreset' | 'prompt'>): { preset: ProceduralPreset; promptMatched: boolean } {
+  const prompt = specification.prompt.toLocaleLowerCase('pl')
+  if (specification.assetKind === 'board') return { preset: 'led-board', promptMatched: promptIncludes(prompt, ['szachownic', 'chessboard', 'plansz']) }
+  if (specification.assetKind === 'station-shell') return { preset: 'research-station', promptMatched: promptIncludes(prompt, ['stacja badawc', 'research station', 'laboratori']) }
+  if (specification.assetKind === 'texture-pack') return { preset: 'texture-tile', promptMatched: false }
+  if (promptIncludes(prompt, ['ziemi', 'earth', 'planet'])) return { preset: 'earth-guardian', promptMatched: true }
+  const rookMatched = promptIncludes(prompt, ['wież', 'rook', 'castle'])
+  if (rookMatched || specification.piecePreset === 'czech-facet') return { preset: 'facet-rook', promptMatched: rookMatched }
+  const knightMatched = promptIncludes(prompt, ['koń', 'kon ', 'knight', 'horse', 'crayon'])
+  if (knightMatched || specification.piecePreset === 'lab-ledcolor') return { preset: 'crayon-knight', promptMatched: knightMatched }
+  const pawnMatched = promptIncludes(prompt, ['pion', 'pawn'])
+  if (pawnMatched || specification.piecePreset === 'classic') return { preset: 'classic-pawn', promptMatched: pawnMatched }
+  return { preset: 'earth-guardian', promptMatched: false }
+}
+
+function createEarthGuardian(mesh: Mesh, scale: number) {
+  addCylinder(mesh, [0, scale * 0.035, 0], scale * 0.07, scale * 0.38, scale * 0.34, 24)
+  addSphere(mesh, [0, scale * 0.58, 0], [scale * 0.3, scale * 0.3, scale * 0.3], 14, 24)
+  addSphere(mesh, [-scale * 0.34, scale * 0.55, 0], [scale * 0.09, scale * 0.22, scale * 0.08], 8, 12)
+  addSphere(mesh, [scale * 0.34, scale * 0.55, 0], [scale * 0.09, scale * 0.22, scale * 0.08], 8, 12)
+  addSphere(mesh, [-scale * 0.13, scale * 0.2, 0], [scale * 0.1, scale * 0.21, scale * 0.11], 8, 12)
+  addSphere(mesh, [scale * 0.13, scale * 0.2, 0], [scale * 0.1, scale * 0.21, scale * 0.11], 8, 12)
+}
+
+function createFacetRook(mesh: Mesh, scale: number) {
+  addCylinder(mesh, [0, scale * 0.06, 0], scale * 0.12, scale * 0.34, scale * 0.29, 12)
+  addCylinder(mesh, [0, scale * 0.26, 0], scale * 0.28, scale * 0.25, scale * 0.17, 10)
+  addCylinder(mesh, [0, scale * 0.54, 0], scale * 0.28, scale * 0.17, scale * 0.25, 10)
+  addCylinder(mesh, [0, scale * 0.73, 0], scale * 0.11, scale * 0.3, scale * 0.3, 12)
+  for (let index = 0; index < 6; index += 1) {
+    const angle = (index / 6) * Math.PI * 2
+    addBox(mesh, [Math.cos(angle) * scale * 0.22, scale * 0.86, Math.sin(angle) * scale * 0.22], [scale * 0.16, scale * 0.18, scale * 0.16])
+  }
+}
+
+function createCrayonKnight(mesh: Mesh, scale: number) {
+  addCylinder(mesh, [0, scale * 0.06, 0], scale * 0.12, scale * 0.35, scale * 0.3, 18)
+  addCylinder(mesh, [0, scale * 0.24, 0], scale * 0.25, scale * 0.24, scale * 0.17, 14)
+  addSphere(mesh, [scale * 0.04, scale * 0.53, 0], [scale * 0.2, scale * 0.28, scale * 0.17], 9, 14)
+  addSphere(mesh, [scale * 0.13, scale * 0.72, 0], [scale * 0.19, scale * 0.16, scale * 0.15], 8, 12)
+  addBox(mesh, [scale * 0.28, scale * 0.69, 0], [scale * 0.2, scale * 0.12, scale * 0.16])
+  addCylinder(mesh, [scale * 0.04, scale * 0.88, -scale * 0.08], scale * 0.28, scale * 0.045, 0, 10)
+  addCylinder(mesh, [scale * 0.04, scale * 0.88, scale * 0.08], scale * 0.28, scale * 0.045, 0, 10)
+}
+
+function createClassicPawn(mesh: Mesh, scale: number) {
+  addCylinder(mesh, [0, scale * 0.055, 0], scale * 0.11, scale * 0.34, scale * 0.29, 24)
+  addCylinder(mesh, [0, scale * 0.24, 0], scale * 0.27, scale * 0.24, scale * 0.14, 20)
+  addCylinder(mesh, [0, scale * 0.43, 0], scale * 0.1, scale * 0.2, scale * 0.18, 20)
+  addSphere(mesh, [0, scale * 0.66, 0], [scale * 0.21, scale * 0.21, scale * 0.21], 12, 20)
+}
+
+function createResearchStation(mesh: Mesh, scale: number, stationId: AssetSpecification['stationId']) {
+  if (stationId === 'arctic') {
+    addCylinder(mesh, [0, scale * 0.05, 0], scale * 0.1, scale * 0.5, scale * 0.46, 24)
+    addSphere(mesh, [0, scale * 0.28, 0], [scale * 0.4, scale * 0.3, scale * 0.4], 10, 20)
+    for (const x of [-0.34, 0.34]) addCylinder(mesh, [x * scale, scale * 0.35, 0], scale * 0.6, scale * 0.035, scale * 0.02, 10)
+    addBox(mesh, [0, scale * 0.72, 0], [scale * 0.54, scale * 0.035, scale * 0.18])
+    return
+  }
+  if (stationId === 'sahara') {
+    addBox(mesh, [0, scale * 0.06, 0], [scale, scale * 0.12, scale * 0.72])
+    addSphere(mesh, [-scale * 0.2, scale * 0.31, 0], [scale * 0.3, scale * 0.28, scale * 0.3], 9, 18)
+    addBox(mesh, [scale * 0.32, scale * 0.24, -scale * 0.25], [scale * 0.42, scale * 0.035, scale * 0.28])
+    addBox(mesh, [scale * 0.32, scale * 0.24, scale * 0.25], [scale * 0.42, scale * 0.035, scale * 0.28])
+    addCylinder(mesh, [-scale * 0.2, scale * 0.7, 0], scale * 0.48, scale * 0.035, scale * 0.018, 10)
+    return
+  }
+  if (stationId === 'ocean') {
+    addCylinder(mesh, [0, scale * 0.08, 0], scale * 0.16, scale * 0.48, scale * 0.42, 24)
+    addCylinder(mesh, [0, scale * 0.38, 0], scale * 0.52, scale * 0.18, scale * 0.1, 16)
+    addSphere(mesh, [0, scale * 0.67, 0], [scale * 0.22, scale * 0.19, scale * 0.22], 9, 16)
+    for (let index = 0; index < 3; index += 1) {
+      const angle = index / 3 * Math.PI * 2
+      addSphere(mesh, [Math.cos(angle) * scale * 0.48, scale * 0.22, Math.sin(angle) * scale * 0.48], [scale * 0.13, scale * 0.1, scale * 0.13], 7, 12)
+    }
+    return
+  }
+  addBox(mesh, [0, scale * 0.06, 0], [scale, scale * 0.12, scale * 0.78])
+  addSphere(mesh, [0, scale * 0.3, 0], [scale * 0.34, scale * 0.29, scale * 0.34], 11, 20)
+  addCylinder(mesh, [0, scale * 0.68, 0], scale * 0.62, scale * 0.035, scale * 0.018, 12)
+  addBox(mesh, [-scale * 0.34, scale * 0.76, 0], [scale * 0.5, scale * 0.035, scale * 0.22])
+  addBox(mesh, [scale * 0.34, scale * 0.76, 0], [scale * 0.5, scale * 0.035, scale * 0.22])
+}
+
+function createMesh(specification: AssetSpecification): { mesh: Mesh; preset: ProceduralPreset; promptMatched: boolean; label: string } {
   const mesh: Mesh = { positions: [], normals: [], texcoords: [], indices: [] }
-  const scale = scaleMm / 1000
-  if (kind === 'figurine') {
-    addBox(mesh, [0, scale * 0.03, 0], [scale * 0.72, scale * 0.06, scale * 0.52])
-    addSphere(mesh, [0, scale * 0.58, 0], [scale * 0.3, scale * 0.3, scale * 0.3], 14, 24)
-    addSphere(mesh, [-scale * 0.34, scale * 0.55, 0], [scale * 0.09, scale * 0.22, scale * 0.08], 8, 12)
-    addSphere(mesh, [scale * 0.34, scale * 0.55, 0], [scale * 0.09, scale * 0.22, scale * 0.08], 8, 12)
-    addSphere(mesh, [-scale * 0.13, scale * 0.2, 0], [scale * 0.1, scale * 0.21, scale * 0.11], 8, 12)
-    addSphere(mesh, [scale * 0.13, scale * 0.2, 0], [scale * 0.1, scale * 0.21, scale * 0.11], 8, 12)
-  } else if (kind === 'board') {
+  const scale = specification.scaleMm / 1000
+  const { preset, promptMatched } = selectProceduralPreset(specification)
+  if (preset === 'earth-guardian') createEarthGuardian(mesh, scale)
+  else if (preset === 'facet-rook') createFacetRook(mesh, scale)
+  else if (preset === 'crayon-knight') createCrayonKnight(mesh, scale)
+  else if (preset === 'classic-pawn') createClassicPawn(mesh, scale)
+  else if (preset === 'led-board') {
     addBox(mesh, [0, scale * 0.035, 0], [scale, scale * 0.07, scale])
     addBox(mesh, [0, scale * 0.075, 0], [scale * 0.88, scale * 0.02, scale * 0.88])
-  } else if (kind === 'station-shell') {
-    addBox(mesh, [0, scale * 0.08, 0], [scale, scale * 0.16, scale * 0.8])
-    addSphere(mesh, [0, scale * 0.36, 0], [scale * 0.42, scale * 0.34, scale * 0.34], 12, 20)
-    addBox(mesh, [0, scale * 0.76, 0], [scale * 0.06, scale * 0.5, scale * 0.06])
-    addBox(mesh, [0, scale * 0.94, 0], [scale * 0.45, scale * 0.035, scale * 0.15])
+  } else if (preset === 'research-station') {
+    createResearchStation(mesh, scale, specification.stationId)
   } else {
     addBox(mesh, [0, scale * 0.01, 0], [scale, scale * 0.02, scale])
   }
-  return mesh
+  const labels: Record<ProceduralPreset, string> = {
+    'earth-guardian': 'Earth Guardian character',
+    'facet-rook': 'ForgeMCP faceted rook',
+    'crayon-knight': 'Crayon orbital knight',
+    'classic-pawn': 'Classic low-poly pawn',
+    'led-board': 'LED chessboard tile',
+    'research-station': 'Research-station shell',
+    'texture-tile': 'Procedural texture tile',
+  }
+  return { mesh, preset, promptMatched, label: labels[preset] }
 }
 
 function crc32(bytes: Uint8Array) {
@@ -231,13 +393,27 @@ function vectorBounds(values: number[]) {
   return { min, max }
 }
 
+function geometryFingerprint(mesh: Mesh) {
+  let hash = 2166136261
+  for (const value of [...mesh.positions, ...mesh.indices]) {
+    const text = Number.isInteger(value) ? `${value};` : `${value.toFixed(7)};`
+    for (const character of text) {
+      hash ^= character.charCodeAt(0)
+      hash = Math.imul(hash, 16777619)
+    }
+  }
+  return `fnv1a32:${(hash >>> 0).toString(16).padStart(8, '0')}`
+}
+
 export function generateProceduralAssetBundle(specification: AssetSpecification): ProceduralAssetBundle {
-  const mesh = createMesh(specification.assetKind, specification.scaleMm)
+  const generated = createMesh(specification)
+  const { mesh } = generated
   const positions = typedBytes(mesh.positions, 'float32')
   const normals = typedBytes(mesh.normals, 'float32')
   const texcoords = typedBytes(mesh.texcoords, 'float32')
   const indices = typedBytes(mesh.indices, 'uint32')
   const binary = concat([positions, normals, texcoords, indices])
+  const fingerprint = geometryFingerprint(mesh)
   const texture = createTexturePng(specification.primaryColor, specification.secondaryColor, specification.assetKind)
   const bounds = vectorBounds(mesh.positions)
   const gltf = {
@@ -270,6 +446,9 @@ export function generateProceduralAssetBundle(specification: AssetSpecification)
       manufacturingReady: false,
       units: 'metres',
       sourceScaleMm: specification.scaleMm,
+      proceduralPreset: generated.preset,
+      geometryFingerprint: fingerprint,
+      renderSource: 'EXPORTED_GLTF_GEOMETRY',
     },
   }
   const content = JSON.stringify(gltf, null, 2)
@@ -285,6 +464,8 @@ export function generateProceduralAssetBundle(specification: AssetSpecification)
     bufferViewsAligned: [0, positions.length, positions.length + normals.length, positions.length + normals.length + texcoords.length].every(offset => offset % 4 === 0),
     pngSignatureValid,
     specificationLinked: gltf.extras.specificationId === specification.id,
+    presetResolved: gltf.extras.proceduralPreset === generated.preset,
+    geometryFingerprintLinked: gltf.extras.geometryFingerprint === fingerprint,
   }
   return {
     status: 'LOCAL_PROCEDURAL_ASSET_READY',
@@ -294,11 +475,23 @@ export function generateProceduralAssetBundle(specification: AssetSpecification)
     downloadReady: true,
     filePersisted: false,
     manufacturingReady: false,
+    renderSource: 'EXPORTED_GLTF_GEOMETRY',
+    geometryFingerprint: fingerprint,
+    preview: {
+      preset: generated.preset,
+      label: generated.label,
+      promptMatched: generated.promptMatched,
+      primaryColor: specification.primaryColor,
+      secondaryColor: specification.secondaryColor,
+      positions: mesh.positions,
+      normals: mesh.normals,
+      indices: mesh.indices,
+    },
     model: { filename: `${specification.id}.gltf`, mimeType: 'model/gltf+json', content },
     texture: { filename: `${specification.id}-texture.png`, mimeType: 'image/png', width: 128, height: 128, bytes: texture },
     metrics: { vertices: vertexCount, triangles: mesh.indices.length / 3, embeddedTexture: true, selfContained: true },
     qa: { ...generatorChecks, result: Object.values(generatorChecks).every(Boolean) ? 'GENERATOR_CHECKS_PASS' : 'GENERATOR_CHECKS_FAIL' },
-    truthBoundary: 'Real procedural glTF model data and PNG texture bytes were generated in browser memory and are ready for explicit download. The generator checks are not Khronos conformance validation, rendering proof, sculpted production topology, a PBR archive, printability proof, certified device or manufactured product.',
+    truthBoundary: 'Real procedural glTF model data and PNG texture bytes were generated in browser memory and are ready for explicit download. The prompt interpreter selects only the supported deterministic presets; other prompt details remain instructions for the Codex brief. The generator checks are not Khronos conformance validation, printability proof, certified device or manufactured product.',
   }
 }
 
@@ -311,6 +504,13 @@ export function proceduralAssetManifest(bundle: ProceduralAssetBundle) {
     downloadReady: bundle.downloadReady,
     filePersisted: bundle.filePersisted,
     manufacturingReady: bundle.manufacturingReady,
+    renderSource: bundle.renderSource,
+    geometryFingerprint: bundle.geometryFingerprint,
+    preview: {
+      preset: bundle.preview.preset,
+      label: bundle.preview.label,
+      promptMatched: bundle.preview.promptMatched,
+    },
     files: [
       { filename: bundle.model.filename, mimeType: bundle.model.mimeType },
       { filename: bundle.texture.filename, mimeType: bundle.texture.mimeType, width: bundle.texture.width, height: bundle.texture.height },

@@ -6,6 +6,11 @@ import { runCubeTrainingWorkflow } from '../coordinator/workflows'
 import type { WorkflowRun } from '../types/core'
 import { StationConceptVisual } from './StationConceptVisual'
 import { StatusBadge } from './StatusBadge'
+import { MiniChessGame } from './MiniChessGame'
+import { LiveProjectFrame } from './LiveProjectFrame'
+import { ProceduralAssetViewer } from './ProceduralAssetViewer'
+import { createAssetSpecification } from '../integrations/commerce/productLab'
+import { generateProceduralAssetBundle } from '../integrations/commerce/proceduralAssets'
 
 const CUBE_URL = 'https://teslaeco.github.io/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/'
 const CUBE_PR_135 = 'https://github.com/teslaeco/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/pull/135'
@@ -19,8 +24,8 @@ type PieceId = 'forgemcp-premium' | 'crayon-cathedral' | 'classic-staunton' | 'e
 
 const BOARD_PRESETS: Array<{ id: BoardId; name: string; geometry: string; status: string; note: string }> = [
   { id: 'cube-512', name: 'Cube Chess 512', geometry: '8×8×8 · 512 cells', status: 'LIVE ENGINE', note: 'Forge executes a pinned rules engine; this preview shows one selected level.' },
-  { id: 'classic-mono', name: 'Classic Black & White', geometry: '8×8 · classic', status: 'UPSTREAM PR #135', note: 'Third board theme is implemented in an open upstream PR and is not claimed live yet.' },
-  { id: 'lab-ledcolor', name: 'Lab LEDColor', geometry: '8×8 · configurable light', status: 'UPSTREAM PR #135', note: 'Premium rename and light controls are ready in the open Cube PR, pending merge.' },
+  { id: 'classic-mono', name: 'Classic Black & White', geometry: '8×8 · classic', status: 'LIVE · PR #135 MERGED', note: 'The Classic Black & White theme is now merged and deployed in the upstream Cube project.' },
+  { id: 'lab-ledcolor', name: 'Lab LEDColor', geometry: '8×8 · configurable light', status: 'LIVE · PR #135 MERGED', note: 'Lab LEDColor controls and the ForgeMCP Premium name are now merged and deployed upstream.' },
   { id: 'station-arena', name: 'Research Station Arena', geometry: '8×8 visual prototype', status: 'FORGEMCP PREVIEW', note: 'A reversible station-derived material and colour preview; it does not mutate Cube upstream.' },
 ]
 
@@ -90,6 +95,20 @@ export function GameStudio() {
 
   const station = getResearchStationPreset(stationId)
   const tournament = useMemo(() => (run?.result ?? {}) as TournamentView, [run])
+  const stationModel = useMemo(() => generateProceduralAssetBundle(createAssetSpecification({
+    track: 'terra-station',
+    stationId,
+    assetKind: 'station-shell',
+    boardPreset: 'lab-ledcolor',
+    piecePreset: 'earth-guardian',
+    material: station.material,
+    texture: station.texture,
+    primaryColor: station.accent,
+    secondaryColor: station.secondary,
+    ledIntensity: light,
+    scaleMm: 180,
+    prompt: `Generate a deterministic research station concept proxy for ${station.name} ${station.subtitle}.`,
+  })), [light, station, stationId])
 
   async function executeBenchmark() {
     setRunning(true)
@@ -121,9 +140,12 @@ export function GameStudio() {
           <div className="studio-station-picker">
             {RESEARCH_STATION_PRESETS.map(item => <button type="button" className={item.id === stationId ? 'active' : ''} key={item.id} onClick={() => setStationId(item.id)} style={{ borderColor: item.id === stationId ? item.accent : undefined }}><b>{item.name}</b><small>{item.subtitle}</small></button>)}
           </div>
-          <StationConceptVisual station={station} compact />
+          <ProceduralAssetViewer bundle={stationModel} />
+          <details className="concept-reference"><summary>Show station concept artwork</summary><StationConceptVisual station={station} compact /></details>
           <p>{station.gameApplication}</p>
+          <p className="lab-note"><b>Model loaded:</b> {stationModel.metrics.vertices} vertices · {stationModel.metrics.triangles} triangles · {stationModel.geometryFingerprint}. This is a browser-generated concept proxy; the source research lab is available below.</p>
           <small>{station.truthBoundary}</small>
+          <div className="toolbar"><a className="button-link" href={station.publicUrl} target="_blank" rel="noreferrer">Open {station.name} source lab ↗</a><Link className="button-link button-link--quiet" to="/stations">Compare all four stations</Link></div>
 
           <h2>2. Board</h2>
           <div className="studio-option-list">
@@ -146,6 +168,18 @@ export function GameStudio() {
           <BoardPreview boardId={boardId} pieceId={pieceId} stationId={stationId} level={level} light={light} />
           <p className="lab-note">{BOARD_PRESETS.find(item => item.id === boardId)?.note} Preview choices stay inside ForgeMCP until a person approves an upstream implementation.</p>
         </section>
+      </section>
+
+      <MiniChessGame />
+
+      <section className="card live-cube-card">
+        <LiveProjectFrame
+          title="Playable Cube Chess 512 upstream"
+          url={CUBE_URL}
+          description="This loads the real public 8×8×8 Cube Chess engine from its MIT-licensed source deployment. It includes the deployed Lab LEDColor, Crayon Cathedral and Classic Black & White visual families."
+          loadLabel="Load playable Cube Chess 512"
+          instructions="open Menu → New game, then choose Lab LEDColor, Crayon Cathedral or Classic Black & White. The embedded game remains cross-origin; ForgeMCP's own benchmark evidence stays separate below."
+        />
       </section>
 
       <section className="grid two studio-generated-example">

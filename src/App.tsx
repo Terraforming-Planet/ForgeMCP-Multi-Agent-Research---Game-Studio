@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
-import { Link, NavLink, Route, Routes, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import './index.css'
 import cosmicHero from './assets/forgemcp-hero-background.webp'
 import { agentRegistry } from './agents/registry'
@@ -245,6 +245,35 @@ function Placeholder({ title }: { title: string }) {
   )
 }
 
+function MoreMenu() {
+  const [openPath, setOpenPath] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const location = useLocation()
+  const open = openPath === location.pathname
+
+  useEffect(() => {
+    function closeOnOutside(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) setOpenPath(null)
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpenPath(null)
+    }
+    document.addEventListener('pointerdown', closeOnOutside)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [])
+
+  return <div className="desktop-more" ref={menuRef}>
+    <button type="button" aria-expanded={open} aria-controls="desktop-more-menu" onClick={() => setOpenPath(open ? null : location.pathname)}>More</button>
+    {open ? <div id="desktop-more-menu">
+      <Link to="/dashboard">Control Center</Link><Link to="/stations">4 Station Concepts</Link><Link to="/research-archive">Research Archive</Link><Link to="/tools">WebMCP Tools</Link><Link to="/challenge">Challenge Evidence</Link><Link to="/approval">Human Approval</Link><Link to="/integrations">Integration Status</Link>
+    </div> : null}
+  </div>
+}
+
 function App() {
   useEffect(() => {
     void registerWebMcpTools()
@@ -259,9 +288,7 @@ function App() {
           <Link to="/labmcp">Terra Satellite Lab</Link>
           <Link to="/game-studio">Game Studio</Link>
           <Link to="/shop-lab">3D + Shopify <small>TEST</small></Link>
-          <details><summary>More</summary><div>
-            <Link to="/dashboard">Control Center</Link><Link to="/stations">4 Station Concepts</Link><Link to="/research-archive">Research Archive</Link><Link to="/tools">WebMCP Tools</Link><Link to="/challenge">Challenge Evidence</Link><Link to="/approval">Human Approval</Link><Link to="/integrations">Integration Status</Link>
-          </div></details>
+          <MoreMenu />
         </nav>
       </header>
 

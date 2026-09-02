@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import earthFigurineConcept from '../assets/earth-figurine-concept.webp'
 import { getResearchStationPreset, RESEARCH_STATION_PRESETS, type ResearchStationPresetId } from '../data/researchStations'
 import {
@@ -18,10 +18,45 @@ import {
 import { generateProceduralAssetBundle, proceduralAssetManifest, type ProceduralAssetBundle } from '../integrations/commerce/proceduralAssets'
 import { StationConceptVisual } from './StationConceptVisual'
 import { StatusBadge } from './StatusBadge'
+import { ProceduralAssetViewer } from './ProceduralAssetViewer'
 
 const EXAMPLE_PROMPT = 'Zrób mi model 3D figurki planety Ziemia jako bajkowej postaci stojącej na szachownicy czarno-białej z podświetleniem LED zielono-niebieskim.'
 
+const CODEX_BUILD_COMMAND = `Zbuduj na podstawie mojego promptu wersjonowany, niskopoligonowy prototyp glTF oraz teksturę PNG. Użyj wyłącznie zasobów własnych albo z udokumentowaną licencją. Pokaż podgląd tej samej geometrii, którą eksportujesz, wykonaj kontrolę indeksów, skali i pochodzenia, nie deklaruj gotowości produkcyjnej i zatrzymaj publikację, Shopify oraz RFQ do akceptacji człowieka.`
+
+type GeneratorExample = {
+  id: string
+  label: string
+  prompt: string
+  assetKind: AssetKind
+  piecePreset?: PiecePreset
+  stationId?: ResearchStationPresetId
+  boardPreset?: BoardPreset
+  primaryColor?: string
+  secondaryColor?: string
+}
+
+const GENERATOR_EXAMPLES: GeneratorExample[] = [
+  { id: 'earth', label: '🌍 Earth Guardian', prompt: EXAMPLE_PROMPT, assetKind: 'figurine', piecePreset: 'earth-guardian', stationId: 'earth-space', boardPreset: 'classic-mono', primaryColor: '#16a7e0', secondaryColor: '#35f0a1' },
+  { id: 'rook', label: '♜ Facet rook', prompt: 'Wygeneruj futurystyczną, fasetowaną wieżę szachową ForgeMCP z niebieskim światłem LED.', assetKind: 'figurine', piecePreset: 'czech-facet', primaryColor: '#6f8cff', secondaryColor: '#5de4ff' },
+  { id: 'knight', label: '♞ Crayon knight', prompt: 'Wygeneruj niskopoligonowego konia szachowego Crayon Cathedral z dwiema kredkowymi antenami.', assetKind: 'figurine', piecePreset: 'lab-ledcolor', primaryColor: '#ffb547', secondaryColor: '#ff54d8' },
+  { id: 'pawn', label: '♟ Classic pawn', prompt: 'Wygeneruj klasyczny pionek szachowy jako czysty model low-poly do podglądu.', assetKind: 'figurine', piecePreset: 'classic', primaryColor: '#d8e2f3', secondaryColor: '#5de4ff' },
+  { id: 'board', label: '▦ LED board', prompt: 'Wygeneruj czarno-białą planszę szachową z zielono-niebieską ramą LED.', assetKind: 'board', boardPreset: 'lab-ledcolor', primaryColor: '#10131c', secondaryColor: '#35f0a1' },
+  { id: 'arctic', label: '❄ Arctic station', prompt: 'Wygeneruj proceduralny model koncepcyjny stacji badawczej Arctic 90°N.', assetKind: 'station-shell', stationId: 'arctic', primaryColor: '#75efff', secondaryColor: '#dffbff' },
+  { id: 'sahara', label: '◒ Sahara station', prompt: 'Wygeneruj proceduralny model koncepcyjny stacji Sahara Water Memory.', assetKind: 'station-shell', stationId: 'sahara', primaryColor: '#ffc767', secondaryColor: '#ffe2a9' },
+  { id: 'ocean', label: '≋ Ocean station', prompt: 'Wygeneruj proceduralny model koncepcyjny pływającej stacji Ocean Blue Sentinel.', assetKind: 'station-shell', stationId: 'ocean', primaryColor: '#3fffd1', secondaryColor: '#73bfff' },
+  { id: 'orbit', label: '◎ Earth–Space', prompt: 'Wygeneruj proceduralny model koncepcyjny stacji Earth–Space Orbital Synthesis.', assetKind: 'station-shell', stationId: 'earth-space', primaryColor: '#a77bff', secondaryColor: '#56ddff' },
+]
+
 type DisplayResult = Record<string, unknown> | null
+
+function GeneratedTexturePreview({ bundle }: { bundle: ProceduralAssetBundle }) {
+  const url = useMemo(() => URL.createObjectURL(new Blob([Uint8Array.from(bundle.texture.bytes).buffer], { type: bundle.texture.mimeType })), [bundle])
+  useEffect(() => {
+    return () => URL.revokeObjectURL(url)
+  }, [url])
+  return <img className="generated-texture-preview" src={url} alt={`Generated 128 by 128 pixel texture for ${bundle.preview.label}`} />
+}
 
 function downloadJson(name: string, value: unknown) {
   const blob = new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' })
@@ -65,6 +100,8 @@ export function ProductLab() {
   const [rfqResult, setRfqResult] = useState<DisplayResult>(null)
   const [rfqSpecificationId, setRfqSpecificationId] = useState<string | null>(null)
   const [finalTest, setFinalTest] = useState<DisplayResult>(null)
+  const [generationMessage, setGenerationMessage] = useState('Choose an example or write a prompt, then generate a visible model.')
+  const [copyMessage, setCopyMessage] = useState('')
 
   const station = getResearchStationPreset(stationId)
   const configuration = useMemo<AssetConfiguration>(() => ({
@@ -91,7 +128,30 @@ export function ProductLab() {
   const finalTestIsCurrent = finalTest?.specificationId === specification.id
 
   function generateAssetFiles() {
-    setAssetBundle(generateProceduralAssetBundle(specification))
+    const generated = generateProceduralAssetBundle(specification)
+    setAssetBundle(generated)
+    setGenerationMessage(`Generated ${generated.preview.label}: ${generated.metrics.vertices} vertices and ${generated.metrics.triangles} triangles. The rotating preview and downloads use the same geometry.`)
+  }
+
+  function applyExample(example: GeneratorExample) {
+    setPrompt(example.prompt)
+    setAssetKind(example.assetKind)
+    if (example.piecePreset) setPiecePreset(example.piecePreset)
+    if (example.stationId) setStationId(example.stationId)
+    if (example.boardPreset) setBoardPreset(example.boardPreset)
+    if (example.primaryColor) setPrimaryColor(example.primaryColor)
+    if (example.secondaryColor) setSecondaryColor(example.secondaryColor)
+    setTrack(example.assetKind === 'station-shell' ? 'terra-station' : 'cube-asset')
+    setGenerationMessage(`${example.label} configured. Press Generate to build and display its geometry.`)
+  }
+
+  async function copyCodexCommand() {
+    try {
+      await navigator.clipboard.writeText(`${CODEX_BUILD_COMMAND}\n\nPrompt użytkownika: ${prompt}`)
+      setCopyMessage('Codex command copied.')
+    } catch {
+      setCopyMessage('Copy is unavailable in this browser; select the command text manually.')
+    }
   }
 
   function runAssistant() {
@@ -165,10 +225,26 @@ export function ProductLab() {
         </button>
       </section>
 
+      <section className="card premium-pack-notice">
+        <div className="lab-section-title"><div><p className="eyebrow">LARGE ASSET INTAKE · PREPARED, NOT UPLOADED</p><h2>Premium Visual Pack — free judging demo</h2></div><StatusBadge value="LICENSE CHECK REQUIRED" /></div>
+        <p>A 5 GB source pack must be audited file-by-file, optimized into small GLB/KTX2 previews and served on demand from object storage. It must not be bundled into GitHub Pages or loaded when the site opens.</p>
+        <div className="lab-metrics premium-pack-steps">
+          <article><b>01</b><span>scan + inventory</span></article><article><b>02</b><span>license + origin</span></article><article><b>03</b><span>GLB/KTX2 + LOD</span></article><article><b>04</b><span>CDN + mobile QA</span></article>
+        </div>
+        <p className="lab-note">No uploaded asset will be sold or relicensed automatically. The public judging path stays free; Shopify remains a blocked mapping test until a licensed product and authorized store are connected.</p>
+      </section>
+
       <section className="product-workbench">
         <div className="card product-controls">
           <p className="eyebrow">ASSET CONFIGURATOR</p>
           <h2>1. Configure the concept</h2>
+          <div className="generator-examples" aria-label="Working generator examples">
+            {GENERATOR_EXAMPLES.map(example => <button type="button" key={example.id} onClick={() => applyExample(example)}>{example.label}</button>)}
+          </div>
+          <label>Prompt for the deterministic local generator
+            <textarea aria-label="3D generator prompt" rows={5} value={prompt} onChange={event => setPrompt(event.target.value)} />
+          </label>
+          <p className="lab-note">Supported words select a tested shape: Earth, pawn, rook, knight, board or station. The remaining creative instructions are preserved for the Codex brief; this browser does not pretend to run a free-form generative 3D model.</p>
           <label>Research-station design system
             <select value={stationId} onChange={event => setStationId(event.target.value as ResearchStationPresetId)}>{RESEARCH_STATION_PRESETS.map(item => <option value={item.id} key={item.id}>{item.name} · {item.subtitle}</option>)}</select>
           </label>
@@ -202,38 +278,47 @@ export function ProductLab() {
 
         <div className="card product-preview" style={previewStyle}>
           <div className="lab-section-title"><div><p className="eyebrow">VISUAL CONCEPT + LOCAL ASSET EXPORT</p><h2>{station.name} · {assetKind}</h2></div><StatusBadge value={assetBundleIsCurrent ? 'GLTF READY' : assetBundle ? 'REGENERATE REQUIRED' : 'CONCEPT'} /></div>
-          {track === 'cube-asset' && piecePreset === 'earth-guardian'
-            ? <img src={earthFigurineConcept} alt="AI-generated Earth figurine concept on a black-and-white board with green and blue LEDs; not a manufactured product or 3D model file" />
-            : <StationConceptVisual station={station} />}
+          {assetBundle
+            ? <ProceduralAssetViewer bundle={assetBundle} stale={!assetBundleIsCurrent} />
+            : track === 'cube-asset' && assetKind === 'figurine' && piecePreset === 'earth-guardian'
+              ? <img src={earthFigurineConcept} alt="AI-generated Earth figurine concept on a black-and-white board with green and blue LEDs; not a manufactured product or 3D model file" />
+              : <StationConceptVisual station={station} />}
           <div className="preview-swatches"><i /><i /><span>{material}</span></div>
-          <p className="lab-note"><b>Generated image:</b> visual direction only. The exporter below creates a real low-poly glTF prototype with embedded 128×128 PNG texture; it is not a sculpted GLB/STL, PBR archive or manufacturing proof.</p>
+          <p className="lab-note"><b>{assetBundle ? 'Live generated geometry:' : 'Concept reference:'}</b> {assetBundle ? 'the rotating canvas renders the same vertex and index arrays embedded in the downloadable glTF.' : 'visual direction only; generate below to create and see a real low-poly prototype.'} It is not a sculpted production asset or manufacturing proof.</p>
+          <p className="generation-status" aria-live="polite">{generationMessage}</p>
           <div className="asset-export-panel">
-            <button type="button" className="lab-primary" onClick={generateAssetFiles}>Generate procedural glTF + PNG</button>
+            <button type="button" className="lab-primary" onClick={generateAssetFiles}>Generate and show 3D model + texture</button>
             {assetBundle ? assetBundleIsCurrent ? <>
               <StatusBadge value="LOCAL FILES READY" />
-              <p><b>{assetBundle.metrics.vertices}</b> vertices · <b>{assetBundle.metrics.triangles}</b> triangles · self-contained texture</p>
+              <div className="generated-asset-summary">
+                <GeneratedTexturePreview bundle={assetBundle} />
+                <p><b>{assetBundle.preview.label}</b><br />{assetBundle.metrics.vertices} vertices · {assetBundle.metrics.triangles} triangles<br /><small>{assetBundle.geometryFingerprint}</small></p>
+              </div>
               <div className="toolbar">
                 <button type="button" onClick={() => downloadFile(assetBundle.model.filename, assetBundle.model.content, assetBundle.model.mimeType)}>Download .gltf model</button>
                 <button type="button" onClick={() => downloadFile(assetBundle.texture.filename, assetBundle.texture.bytes, assetBundle.texture.mimeType)}>Download .png texture</button>
                 <button type="button" onClick={() => downloadJson(`${assetBundle.specificationId}-manifest.json`, proceduralAssetManifest(assetBundle))}>Download QA manifest</button>
               </div>
               <small>{assetBundle.truthBoundary}</small>
-            </> : <p className="lab-error">The configuration changed. Generate the files again so the model, texture and specification stay linked.</p> : null}
+            </> : <p className="lab-error">The configuration changed. The old model remains visible with an outdated overlay; generate again so model, texture and specification stay linked.</p> : null}
           </div>
+          <details className="concept-reference"><summary>Show the visual concept reference</summary>{track === 'cube-asset' && piecePreset === 'earth-guardian' ? <img src={earthFigurineConcept} alt="Earth Guardian visual concept reference" /> : <StationConceptVisual station={station} />}</details>
         </div>
       </section>
 
       <section className="card codex-assistant">
         <div className="lab-section-title"><div><p className="eyebrow">FORGEMCP ASSISTANT + CODEX AGENT</p><h2>2. Prepare a build-ready agent brief</h2></div><StatusBadge value={assistantIsCurrent ? 'BRIEF READY' : assistantResult ? 'REGENERATE REQUIRED' : 'WAITING FOR HUMAN'} /></div>
         <div className="assistant-flow" aria-label="Assistant workflow"><span>Human prompt</span><b>→</b><span>ForgeMCP assistant</span><b>→</b><span>Codex agent brief</span><b>→</b><span>QA</span><b>→</b><span>Human approval</span></div>
-        <label>Example prompt
-          <textarea rows={4} value={prompt} onChange={event => setPrompt(event.target.value)} />
+        <label>Codex build command
+          <textarea aria-label="Codex build command" rows={6} readOnly value={`${CODEX_BUILD_COMMAND}\n\nPrompt użytkownika: ${prompt}`} />
         </label>
         <div className="toolbar">
           <button type="button" className="lab-primary" onClick={runAssistant}>Assistant: prepare Codex brief</button>
+          <button type="button" onClick={copyCodexCommand}>Copy command for Codex</button>
           <button type="button" onClick={() => downloadJson(`${specification.id}.json`, assistantResult ?? prepareCodexAssetBrief(prompt, configuration))}>Export agent brief JSON</button>
         </div>
-        {assistantResult ? <div className="assistant-result"><h3>Agent plan ready — execution not started</h3><pre>{JSON.stringify(assistantResult, null, 2)}</pre></div> : null}
+        {copyMessage ? <p className="lab-note" role="status">{copyMessage}</p> : null}
+        {assistantResult ? <details className="assistant-result"><summary>Agent plan ready — execution not started</summary><pre>{JSON.stringify(assistantResult, null, 2)}</pre></details> : null}
       </section>
 
       <section className="grid two product-handoffs">
@@ -241,14 +326,14 @@ export function ProductLab() {
           <p className="eyebrow">SHOPIFY TEST</p><h2>3. Local product mapping brief</h2>
           <p>Prepare title, description, tags and specification reference for later Shopify field mapping. This is not a ProductCreateInput; it remains unpublished and cannot be purchased until a real store and variant are connected.</p>
           <button type="button" onClick={buildShopifyDraft}>Prepare local Shopify mapping draft</button>
-          {shopifyResult ? <><StatusBadge value={shopifyDraftIsCurrent ? 'SHOPIFY NOT CONNECTED' : 'DRAFT OUTDATED'} /><pre>{JSON.stringify(shopifyResult, null, 2)}</pre></> : null}
+          {shopifyResult ? <><StatusBadge value={shopifyDraftIsCurrent ? 'SHOPIFY NOT CONNECTED' : 'DRAFT OUTDATED'} /><details><summary>Show local Shopify draft JSON</summary><pre>{JSON.stringify(shopifyResult, null, 2)}</pre></details></> : null}
           <button type="button" disabled>Buy in Shopify · connection required</button>
         </article>
         <article className="card">
           <p className="eyebrow">B2B MANUFACTURING TEST</p><h2>4. Request for quotation</h2>
           <p>Shopify B2B manages known companies; it does not discover manufacturers. This lab prepares an RFQ, while supplier discovery stays explicitly unconnected.</p>
           <button type="button" onClick={buildRfq}>Prepare unsent B2B RFQ</button>
-          {rfqResult ? <><StatusBadge value={rfqDraftIsCurrent ? 'RFQ NOT SENT' : 'DRAFT OUTDATED'} /><pre>{JSON.stringify(rfqResult, null, 2)}</pre></> : null}
+          {rfqResult ? <><StatusBadge value={rfqDraftIsCurrent ? 'RFQ NOT SENT' : 'DRAFT OUTDATED'} /><details><summary>Show unsent RFQ JSON</summary><pre>{JSON.stringify(rfqResult, null, 2)}</pre></details></> : null}
           <button type="button" disabled>Send to verified supplier · connection required</button>
         </article>
       </section>
@@ -257,7 +342,7 @@ export function ProductLab() {
         <div className="lab-section-title"><div><p className="eyebrow">FINAL SAFETY WINDOW</p><h2>5. Run the end-to-end test without buying or sending</h2></div><StatusBadge value={finalTest ? finalTestIsCurrent && typeof finalTest.status === 'string' ? finalTest.status : 'RERUN REQUIRED' : qa.status} /></div>
         <p>PASS requires current model/texture data, generator QA, Codex brief, Shopify mapping draft and B2B RFQ draft. Payment, order and supplier submission must remain blocked.</p>
         <button type="button" className="lab-primary" onClick={runFinalTest}>Run final test window</button>
-        {finalTest ? <pre>{JSON.stringify(finalTest, null, 2)}</pre> : null}
+        {finalTest ? <details open><summary>Show final test evidence</summary><pre>{JSON.stringify(finalTest, null, 2)}</pre></details> : null}
       </section>
     </>
   )
