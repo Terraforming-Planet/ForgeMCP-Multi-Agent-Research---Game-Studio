@@ -7,6 +7,7 @@ import {
   type HazardInvestigationInput,
   type HazardInvestigationResult,
   type HazardType,
+  type WorkerAnalysisImage,
 } from '../integrations/terra/hazardInvestigation'
 import { getTool } from '../webmcp/registry'
 import {
@@ -20,6 +21,7 @@ import { readLocalJson, writeLocalJson } from '../lib/storage'
 import { compactReportText, mobilePreviewUrl } from '../lib/reportDisplay'
 import {
   createResearchArchiveEntry,
+  countMatchingResearchRuns,
   readResearchArchive,
   saveResearchArchiveEntry,
   type ResearchArchiveStorage,
@@ -151,6 +153,19 @@ function cloudCoverLabel(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}%` : 'brak metadanych'
 }
 
+type ImageOriginRecord = Pick<WorkerAnalysisImage, 'image_authenticity' | 'ai_generated'>
+
+function isExplicitOriginalSatelliteImage(image: ImageOriginRecord) {
+  return image.image_authenticity === 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT' && image.ai_generated === false
+}
+
+function imageOriginLabel(image: ImageOriginRecord) {
+  if (image.ai_generated === true || image.image_authenticity === 'AI_GENERATED_IMAGE') return 'WYGENEROWANE PRZEZ AI · NIE JEST DOWODEM'
+  if (image.image_authenticity === 'DERIVED_ANALYTICAL_PRODUCT') return 'PRODUKT POCHODNY · NIE JEST ORYGINALNYM ZDJĘCIEM'
+  if (isExplicitOriginalSatelliteImage(image)) return 'ORYGINALNY OFICJALNY PRODUKT SATELITARNY · NIE AI'
+  return 'POCHODZENIE NIEPOTWIERDZONE · NIE UŻYWAĆ JAKO DOWODU'
+}
+
 function archiveStatusMessage(storage: ResearchArchiveStorage, count: number, automatic: boolean) {
   const action = automatic ? 'Badanie zapisano automatycznie.' : 'Zapis badania potwierdzony.'
   if (storage === 'local') return `${action} Archiwum tej przeglądarki: ${count} ${count === 1 ? 'wpis' : 'wpisów'}.`
@@ -170,7 +185,7 @@ export function LabMcp() {
   const [showImagery, setShowImagery] = useState(false)
   const [showPatrolImagery, setShowPatrolImagery] = useState(false)
   const [archiveStatus, setArchiveStatus] = useState('')
-  const [archiveCount, setArchiveCount] = useState(() => readResearchArchive().length)
+  const [archiveEntries, setArchiveEntries] = useState(() => readResearchArchive())
   const [imageDimensions, setImageDimensions] = useState<Record<string, string>>({})
   const [failedImages, setFailedImages] = useState<Record<string, true>>({})
   const [imageryDisplay, setImageryDisplay] = useState<ImageryDisplaySettings>(() => normalizeImageryDisplay(readLocalJson(IMAGERY_DISPLAY_KEY, DEFAULT_IMAGERY_DISPLAY)))
@@ -238,7 +253,7 @@ export function LabMcp() {
       const saved = saveResearchArchiveEntry(createResearchArchiveEntry(researchResult, imageryDisplay))
       const confirmed = saved.entries.some(entry => entry.runId === researchResult.runId)
       if (!confirmed) throw new Error('Przeglądarka nie potwierdziła zapisu badania.')
-      setArchiveCount(saved.entries.length)
+      setArchiveEntries(saved.entries)
       setArchiveStatus(archiveStatusMessage(saved.storage, saved.entries.length, automatic))
     } catch (reason) {
       setArchiveStatus(reason instanceof Error ? reason.message : String(reason))
@@ -316,9 +331,15 @@ export function LabMcp() {
   }
 
   const modelPreviewPool = result?.imagery.analysis?.analysis_images ?? result?.imagery.analysis?.preview_images ?? []
-  const modelPreviewImages = result ? selectModelPreviewImages(modelPreviewPool, result.imagery.visuallyInspectedByModel) : []
+  const originalModelPreviewPool = modelPreviewPool.filter(isExplicitOriginalSatelliteImage)
+  const rejectedModelPreviewImages = modelPreviewPool.filter(image => !isExplicitOriginalSatelliteImage(image))
+  const modelPreviewImages = result ? selectModelPreviewImages(originalModelPreviewPool, result.imagery.visuallyInspectedByModel) : []
   const overviewPreviewImages = modelPreviewImages.filter(image => image.evidence_role !== 'REGIONAL_PATROL_TILE')
   const patrolPreviewImages = modelPreviewImages.filter(image => image.evidence_role === 'REGIONAL_PATROL_TILE')
+  const displayOnlyImages = result?.imagery.analysis?.derived_images ?? []
+  const derivedDisplayImages = displayOnlyImages.filter(image => image.image_authenticity === 'DERIVED_ANALYTICAL_PRODUCT' && image.ai_generated === false)
+  const additionalDerivedDisplayImages = derivedDisplayImages.filter(image => !String(image.evidence_role ?? '').startsWith('CURATED_TEST001_FIXED_CROP'))
+  const generatedDisplayImages = displayOnlyImages.filter(image => image.image_authenticity === 'AI_GENERATED_IMAGE' || image.ai_generated === true)
   const displayFilter = imageryDisplayFilter(imageryDisplay)
   const displayFilterStyle = imageryDisplay.preset === 'natural'
     && imageryDisplay.brightness === 100
@@ -328,16 +349,31 @@ export function LabMcp() {
     ? undefined
     : { filter: displayFilter }
   const availableImageCount = result
-    ? modelPreviewImages.length + result.imagery.slots.filter(item => item.status === 'image').length
+    ? modelPreviewImages.length + additionalDerivedDisplayImages.length + generatedDisplayImages.length + result.imagery.slots.filter(item => item.status === 'image').length
     : 0
   const waterExtrema = result ? getVisibleWaterExtrema(result) : null
   const test001Record = result?.test001Context?.evidence.recordedResult ?? null
   const test001ComparisonImages = test001Record?.comparisonImages ?? []
+  const test001DerivedComparisonImages = test001Record?.derivedComparisonImages ?? []
   const regionalPatrol = result?.imagery.analysis?.regional_patrol ?? null
   const regionalPatrolAssessment = result?.imagery.analysis?.analysis.regional_patrol_assessment ?? null
+  const imageryAuthenticityPolicy = result?.imagery.analysis?.imagery_authenticity_policy ?? null
   const configuredRadiusKm = Number(form.radiusKm)
   const configuredAoiAreaKm2 = Number.isFinite(configuredRadiusKm) && configuredRadiusKm > 0 ? Math.PI * configuredRadiusKm * configuredRadiusKm : 0
   const configuredPatrolCoveragePercent = configuredAoiAreaKm2 > 0 ? Math.min(100, (20 / configuredAoiAreaKm2) * 100) : 0
+  const archiveCount = archiveEntries.length
+  const researchSeriesCount = countMatchingResearchRuns(archiveEntries, {
+    latitude: Number(form.latitude),
+    longitude: Number(form.longitude),
+    radiusKm: Number(form.radiusKm),
+    startYear: Number(form.startYear),
+    endYear: Number(form.endYear),
+    season: form.season,
+    timelineMode: form.timelineMode,
+    hazards: form.hazards,
+    spatialMode: form.spatialMode,
+  })
+  const nextSeriesRun = Math.min(10, researchSeriesCount + 1)
 
   return <>
     <section className="card lab-hero">
@@ -433,14 +469,16 @@ export function LabMcp() {
           <legend>Sposób oglądania obszaru</legend>
           <label><input type="radio" name="spatial" checked={form.spatialMode === 'overview'} onChange={() => setForm(current => ({ ...current, spatialMode: 'overview' }))} /> Widok ogólny · kilka dat całego AOI</label>
           <label><input type="radio" name="spatial" checked={form.spatialMode === 'regional-patrol'} onChange={() => setForm(current => ({ ...current, spatialMode: 'regional-patrol', depth: 'deep' }))} /> Patrol regionalny · 20 zbliżeń 1×1 km + widok ogólny</label>
+          <button type="button" onClick={() => setForm(current => ({ ...current, radiusKm: '20', spatialMode: 'regional-patrol', depth: 'deep' }))}>Ustaw wariant: promień 20 km + 20 kadrów 1 km</button>
           {form.spatialMode === 'regional-patrol' ? <small><b>Uczciwe pokrycie:</b> dla promienia {Number.isFinite(configuredRadiusKm) ? configuredRadiusKm : '—'} km te 20 kadrów obejmie najwyżej około {configuredPatrolCoveragePercent.toFixed(2)}% powierzchni. To przesiew próbek, nie pełna mapa.</small> : null}
         </fieldset>
       </div>
 
       <div className="toolbar lab-run-toolbar">
-        <button type="button" className="lab-primary" onClick={run} disabled={running}>{running ? 'Agenci pobierają i weryfikują prawdziwe źródła…' : 'Uruchom agentów i analizę wieloletnią'}</button>
+        <button type="button" className="lab-primary" onClick={run} disabled={running}>{running ? 'Agenci pobierają i weryfikują prawdziwe źródła…' : researchSeriesCount < 10 ? `Uruchom przebieg ${nextSeriesRun}/10` : 'Uruchom kolejny przebieg'}</button>
         <button type="button" onClick={exportJson} disabled={!result}>Eksportuj pełny JSON</button>
       </div>
+      <p className="lab-note"><b>Seria tej samej konfiguracji:</b> {researchSeriesCount}/10 faktycznie zapisanych, unikalnych przebiegów w tej przeglądarce. Licznik nie zalicza testów kodu ani niezapisanych prób.</p>
       {running ? <p className="lab-progress" role="status">Trwa połączenie z Terra Worker, NASA/USGS/Copernicus, DEM i bazami analogii.{form.spatialMode === 'regional-patrol' ? ' Worker dodatkowo pobiera i sprawdza 20 zbliżeń 1 km w czterech bezpiecznych strumieniach.' : ''} Nie wyświetlamy symulowanych wyników — raport pojawi się dopiero po odpowiedzi źródeł.</p> : null}
       {error ? <p className="lab-error" role="alert"><b>NIE UDAŁO SIĘ ZAKOŃCZYĆ PRZEBIEGU:</b> {error}</p> : null}
     </section>
@@ -476,6 +514,20 @@ export function LabMcp() {
         {archiveStatus ? <p className="lab-place-status" role="status" aria-live="polite">{archiveStatus}</p> : null}
       </section>
 
+      <section className="card lab-authenticity-audit" aria-label="Kontrola pochodzenia obrazów">
+        <div className="lab-section-title"><div><p className="eyebrow">BRAMKA POCHODZENIA OBRAZÓW</p><h2>Tylko oryginalne produkty satelitarne trafiają do modelu</h2></div><StatusBadge value={imageryAuthenticityPolicy ? 'ORIGINAL ONLY' : 'RERUN REQUIRED'} /></div>
+        <div className="lab-metrics">
+          <article><b>{imageryAuthenticityPolicy?.original_model_input_count ?? 0}</b><span>oryginalnych oficjalnych wejść satelitarnych</span></article>
+          <article><b>{imageryAuthenticityPolicy?.derived_model_input_count ?? '—'}</b><span>produktów pochodnych przekazanych modelowi</span></article>
+          <article><b>{imageryAuthenticityPolicy?.ai_generated_model_input_count ?? '—'}</b><span>obrazów AI przekazanych modelowi</span></article>
+          <article><b>{derivedDisplayImages.length}</b><span>produktów pochodnych tylko do kontroli człowieka</span></article>
+        </div>
+        <p className="lab-note">{imageryAuthenticityPolicy
+          ? <><b>Zasada spełniona:</b> model otrzymał wyłącznie jawnie oznaczone, oficjalne produkty satelitarne. Nakładki, maski i klasyfikacje pozostają poza wejściem modelu. W tym przebiegu nie ma obrazów wygenerowanych przez AI.</>
+          : <><b>Brak nowego protokołu pochodzenia:</b> ten zapis pochodzi ze starszej wersji Workera. Nie uznajemy jego obrazów za potwierdzone oryginały — uruchom badanie ponownie.</>}</p>
+        {rejectedModelPreviewImages.length ? <p className="lab-error"><b>Odrzucono {rejectedModelPreviewImages.length} {rejectedModelPreviewImages.length === 1 ? 'obraz' : 'obrazów'} z sekcji wejść modelu</b>, ponieważ nie miały jawnej klasy oryginału albo były produktem pochodnym.</p> : null}
+      </section>
+
       {regionalPatrol ? <section className="card lab-regional-patrol" aria-label="Patrol regionalny zbliżeń satelitarnych">
         <div className="lab-section-title"><div><p className="eyebrow">PATROL REGIONALNY · ZBLIŻENIA 1 KM</p><h2>Co naprawdę obejrzał agent</h2></div><StatusBadge value={sourceState(regionalPatrol.status)} /></div>
         <div className="lab-metrics">
@@ -509,8 +561,8 @@ export function LabMcp() {
       </section> : null}
 
       {test001Record ? <section className="card lab-test001-focus" aria-label="Dowód 500 m dla TEST 001">
-        <div className="lab-section-title"><div><p className="eyebrow">TEST 001 · TEN SAM STAW · KADR 500 M</p><h2>Silnie potwierdzony zanik historycznego lustra wody</h2></div><div className="lab-status-stack"><StatusBadge value="HIGH PRIORITY ANOMALY" /><StatusBadge value="CAUSE UNKNOWN" /></div></div>
-        <p className="lab-finding-lead"><b>Powtarzalne obrazy z lat 1990–2026 silnie wspierają niemal całkowity zanik historycznego trwałego lustra tego stawu.</b> To nie jest już porównanie z Jeziorem Kuchnia: oba obrazy poniżej pokazują ten sam stały wycinek wokół punktu {test001Record.correctedPondSeed.lat.toFixed(6)}, {test001Record.correctedPondSeed.lon.toFixed(6)}.</p>
+        <div className="lab-section-title"><div><p className="eyebrow">TEST 001 · TEN SAM STAW · ORYGINALNE ŹRÓDŁA</p><h2>Silnie wspierany zanik historycznego lustra wody</h2></div><div className="lab-status-stack"><StatusBadge value="HIGH PRIORITY ANOMALY" /><StatusBadge value="CAUSE UNKNOWN" /></div></div>
+        <p className="lab-finding-lead"><b>Powtarzalna seria oryginalnych obrazów satelitarnych z lat 1990–2026 silnie wspiera niemal całkowity zanik historycznego trwałego lustra tego stawu.</b> Dwa pliki poniżej są oryginalnymi, przypiętymi źródłami satelitarnymi obejmującymi ten sam obszar wokół punktu {test001Record.correctedPondSeed.lat.toFixed(6)}, {test001Record.correctedPondSeed.lon.toFixed(6)}. Nie zawierają obrysu, maski ani obrazu AI.</p>
         <div className="lab-metrics">
           <article><b>{test001Record.mostVisibleHistoricalYear}</b><span>najwięcej w zmierzonych latach historycznych · {test001Record.mostVisibleHistoricalAreaHa.toFixed(2)} ha</span></article>
           <article><b>{test001Record.leastVisibleEndpointYear}</b><span>najmniej widocznej wody · brak porównywalnego trwałego lustra</span></article>
@@ -519,19 +571,33 @@ export function LabMcp() {
         </div>
         <div className="lab-imagery-grid lab-fixed-crop-grid">
           {test001ComparisonImages.map(image => {
-            const imageKey = `test001-fixed-${image.year}`
-            const alt = image.year === 2000 ? 'Staw TEST 001 w stałym kadrze historycznym z 2000 roku' : 'Basen stawu TEST 001 w tym samym stałym kadrze w 2026 roku'
+            const imageKey = `test001-original-${image.year}`
+            const alt = image.year === 2000 ? 'Oryginalny obraz satelitarny Landsat-5 obszaru stawu TEST 001 z 2000 roku' : 'Oryginalny obraz satelitarny Sentinel-2B obszaru stawu TEST 001 z 2026 roku'
             return <figure key={image.year}>
               {failedImages[imageKey]
                 ? <div className="lab-image-fallback" role="status"><span>Nie udało się pobrać obrazu dowodowego.</span><a href={image.url} target="_blank" rel="noreferrer">Otwórz źródło ↗</a></div>
                 : <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={image.url} style={displayFilterStyle} loading="eager" decoding="async" alt={alt} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
-              <figcaption><b>{image.year}</b><span>{image.year === 2000 ? 'historyczne lustro wody w obrysie' : 'ten sam historyczny obrys na zmienionym, suchszym basenie'}</span><small>stały kadr ~{test001Record.evidenceCropWidthM.toFixed(0)} m · czerwona linia = historyczny obrys konsensusowy, nie maska bieżącej wody · {imageDimensions[imageKey] ?? 'sprawdzanie obrazu'}</small></figcaption>
+              <figcaption><StatusBadge value={imageOriginLabel({ image_authenticity: image.imageAuthenticity, ai_generated: image.aiGenerated })} /><b>{image.year}</b><span>{image.year === 2000 ? 'oryginalny Landsat‑5 · 30 m' : 'oryginalny Sentinel‑2B · 10 m'}</span><small>pełny przypięty kadr źródłowy 2 km · bez nakładki, maski i generowania AI · {imageDimensions[imageKey] ?? 'sprawdzanie obrazu'}</small></figcaption>
             </figure>
           })}
         </div>
         <p><b>Wielkość zmiany:</b> centralny historyczny obrys {test001Record.historicalPersistentFootprintHa.toFixed(2)} ha; zakres wspierany przez powtarzalne obrazy {(test001Record.repeatSupportedRangeM2[0] / 10_000).toFixed(2)}–{(test001Record.repeatSupportedRangeM2[1] / 10_000).toFixed(2)} ha. W 2026 nie widać porównywalnego trwałego ciemnego lustra.</p>
         <p className="lab-note"><b>Granica prawdy:</b> dokładna resztkowa powierzchnia wody w 2026 i dokładny procent utraty pozostają nieustalone; korony drzew, cień, mokra gleba i piksele mieszane uniemożliwiają uczciwe wpisanie „0 m²” lub „100%”. Przyczyna wyschnięcia także nie jest jeszcze ustalona.</p>
-        <details><summary>Dostosuj jasność, kontrast i barwy pary dowodowej</summary><ImageryControls value={imageryDisplay} onChange={setImageryDisplay} /></details>
+        <details><summary>Pokaż pochodne nakładki pomiarowe — nie są oryginalnymi zdjęciami</summary>
+          <p className="lab-note"><b>PRODUKT POCHODNY, NIE AI:</b> czerwony obrys jest wynikiem pomiaru konsensusowego wykonanego na oryginalnej serii. Te pliki służą człowiekowi do kontroli metody i nie zostały przekazane modelowi jako zdjęcia.</p>
+          <div className="lab-imagery-grid lab-fixed-crop-grid">
+            {test001DerivedComparisonImages.map(image => {
+              const imageKey = `test001-derived-${image.year}`
+              return <figure key={imageKey}>
+                {failedImages[imageKey]
+                  ? <div className="lab-image-fallback" role="status"><span>Nie udało się pobrać produktu pochodnego.</span><a href={image.url} target="_blank" rel="noreferrer">Otwórz plik pochodny ↗</a></div>
+                  : <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={image.url} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Pochodna nakładka pomiarowa TEST 001 z ${image.year} roku — nie jest oryginalnym zdjęciem`} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
+                <figcaption><StatusBadge value={imageOriginLabel({ image_authenticity: image.imageAuthenticity, ai_generated: image.aiGenerated })} /><b>{image.year}</b><span>czerwona linia = historyczny obrys konsensusowy</span><small>stały kadr ~{test001Record.evidenceCropWidthM.toFixed(0)} m · produkt kontroli pomiaru · wejście modelu: NIE</small></figcaption>
+              </figure>
+            })}
+          </div>
+        </details>
+        <details><summary>Dostosuj jasność, kontrast i barwy podglądu</summary><ImageryControls value={imageryDisplay} onChange={setImageryDisplay} /></details>
       </section> : null}
 
       {waterExtrema && !test001Record ? <section className="card lab-water-extrema" aria-label="Ranking lat widocznej wody">
@@ -615,8 +681,8 @@ export function LabMcp() {
       </section>
 
       {overviewPreviewImages.length ? <section className="card lab-model-inputs lab-media-section">
-        <div className="lab-section-title"><div><p className="eyebrow">ORYGINALNE WEJŚCIA ANALIZY</p><h2>Wieloletnie obrazy ogólne obejrzane przez model</h2></div><StatusBadge value={`${overviewPreviewImages.length} INSPECTED`} /></div>
-        <p className="lab-note">Model otrzymał oryginalne obrazy źródłowe. Suwaki powyżej zmieniają tylko Twój podgląd i nie zmieniają już wykonanej analizy.</p>
+        <div className="lab-section-title"><div><p className="eyebrow">ORYGINALNE WEJŚCIA ANALIZY · NIE AI</p><h2>Oficjalne produkty satelitarne obejrzane przez model</h2></div><StatusBadge value={`${overviewPreviewImages.length} INSPECTED`} /></div>
+        <p className="lab-note">Każda karta ma jawną klasę oryginału. Może to być pojedyncza akwizycja albo oficjalny kompozyt miesięczny — rodzaj produktu jest podany osobno. Suwaki zmieniają tylko Twój podgląd.</p>
         <div className="lab-imagery-grid lab-model-imagery">
           {overviewPreviewImages.map((image, index) => {
             const imageKey = `model-${image.date}-${index}`
@@ -624,14 +690,14 @@ export function LabMcp() {
               {failedImages[imageKey]
                 ? <div className="lab-image-fallback" role="status"><span>Nie udało się pobrać lekkiego podglądu.</span><a href={image.url} target="_blank" rel="noreferrer">Otwórz źródło ↗</a></div>
                 : <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Obraz wejściowy modelu ${image.date}`} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
-              <figcaption><b>{image.date}</b><span>{image.source}</span><small>{image.evidence_role ?? 'TEMPORAL_CONTEXT'} · {image.nominal_resolution_m ? `${image.nominal_resolution_m} m` : 'rozdzielczość zależna od źródła'} · lekki podgląd {imageDimensions[imageKey] ?? 'sprawdzany'}</small><small>chmury w metadanych: {cloudCoverLabel(image.cloud_cover ?? null)} · kliknij, aby otworzyć oryginał</small></figcaption>
+              <figcaption><StatusBadge value={imageOriginLabel(image)} /><b>{image.date}</b><span>{image.source}</span><small>{image.product_kind ?? image.evidence_role ?? 'TEMPORAL_CONTEXT'} · {image.nominal_resolution_m ? `${image.nominal_resolution_m} m` : 'rozdzielczość zależna od źródła'} · lekki podgląd {imageDimensions[imageKey] ?? 'sprawdzany'}</small><small>chmury w metadanych: {cloudCoverLabel(image.cloud_cover ?? null)} · kliknij, aby otworzyć oryginalne źródło</small></figcaption>
             </figure>
           })}
         </div>
       </section> : null}
 
       {patrolPreviewImages.length ? showPatrolImagery ? <section className="card lab-model-inputs lab-media-section">
-        <div className="lab-section-title"><div><p className="eyebrow">PATROL REGIONALNY · ORYGINALNE WEJŚCIA</p><h2>Zbliżenia faktycznie obejrzane przez model</h2></div><StatusBadge value={`${patrolPreviewImages.length} INSPECTED`} /></div>
+        <div className="lab-section-title"><div><p className="eyebrow">PATROL REGIONALNY · ORYGINALNE WEJŚCIA · NIE AI</p><h2>Zbliżenia faktycznie obejrzane przez model</h2></div><StatusBadge value={`${patrolPreviewImages.length} INSPECTED`} /></div>
         <p className="lab-note">Każdy kadr ma 1 km szerokości, ale natywna rozdzielczość HLS pozostaje około 30 m. Obrazy są ładowane osobno, aby telefon nie wygasił strony.</p>
         <div className="lab-imagery-grid lab-model-imagery">
           {patrolPreviewImages.map((image, index) => {
@@ -640,7 +706,7 @@ export function LabMcp() {
               {failedImages[imageKey]
                 ? <div className="lab-image-fallback" role="status"><span>Nie udało się pobrać lekkiego podglądu.</span><a href={image.url} target="_blank" rel="noreferrer">Otwórz źródło ↗</a></div>
                 : <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Kadr patrolu ${image.patrol_tile_id ?? index + 1} z ${image.date}`} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
-              <figcaption><b>{image.patrol_tile_id ?? `Kadr ${index + 1}`} · {image.date}</b><span>{image.source}</span><small>środek: {typeof image.tile_center_latitude === 'number' ? image.tile_center_latitude.toFixed(6) : '—'}, {typeof image.tile_center_longitude === 'number' ? image.tile_center_longitude.toFixed(6) : '—'} · kadr {image.tile_frame_width_km ?? 1} km · źródło {image.nominal_resolution_m ?? '—'} m</small></figcaption>
+              <figcaption><StatusBadge value={imageOriginLabel(image)} /><b>{image.patrol_tile_id ?? `Kadr ${index + 1}`} · {image.date}</b><span>{image.source}</span><small>środek: {typeof image.tile_center_latitude === 'number' ? image.tile_center_latitude.toFixed(6) : '—'}, {typeof image.tile_center_longitude === 'number' ? image.tile_center_longitude.toFixed(6) : '—'} · kadr {image.tile_frame_width_km ?? 1} km · źródło {image.nominal_resolution_m ?? '—'} m</small></figcaption>
             </figure>
           })}
         </div>
@@ -649,19 +715,47 @@ export function LabMcp() {
         <button type="button" className="lab-primary" onClick={() => setShowPatrolImagery(true)}>Załaduj {patrolPreviewImages.length} zbliżeń</button>
       </section> : null}
 
+      {additionalDerivedDisplayImages.length ? <section className="card lab-derived-products lab-media-section">
+        <div className="lab-section-title"><div><p className="eyebrow">PRODUKTY POCHODNE · POZA WEJŚCIEM MODELU</p><h2>Klasyfikacje i nakładki tylko do kontroli człowieka</h2></div><StatusBadge value={`${additionalDerivedDisplayImages.length} DISPLAY ONLY`} /></div>
+        <p className="lab-note">To nie są oryginalne zdjęcia i nie są obrazami wygenerowanymi przez AI. Powstały przez klasyfikację lub nałożenie wyniku pomiaru na dane satelitarne. System nie użył ich jako wejść wizualnych modelu.</p>
+        <div className="lab-imagery-grid">
+          {additionalDerivedDisplayImages.map((image, index) => {
+            const imageKey = `derived-${image.date}-${index}`
+            return <figure key={imageKey}>
+              {failedImages[imageKey]
+                ? <div className="lab-image-fallback" role="status"><span>Produkt pochodny niedostępny.</span><a href={image.url} target="_blank" rel="noreferrer">Otwórz plik ↗</a></div>
+                : <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Produkt pochodny ${image.source} z ${image.date} — nieoryginalny i niewygenerowany przez AI`} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
+              <figcaption><StatusBadge value={imageOriginLabel(image)} /><b>{image.date}</b><span>{image.source}</span><small>{image.product_kind ?? image.evidence_role ?? 'DERIVED'} · wejście modelu: NIE</small></figcaption>
+            </figure>
+          })}
+        </div>
+      </section> : null}
+
+      {generatedDisplayImages.length ? <section className="card lab-generated-products lab-media-section">
+        <div className="lab-section-title"><div><p className="eyebrow">MATERIAŁ WYGENEROWANY · NIE DOWÓD</p><h2>Obrazy AI wyłączone z analizy satelitarnej</h2></div><StatusBadge value={`${generatedDisplayImages.length} GENERATED`} /></div>
+        <p className="lab-error"><b>Te obrazy są wygenerowane, nie są oryginalnymi zdjęciami satelitarnymi i nie zostały przekazane modelowi jako dowód.</b></p>
+        <div className="lab-imagery-grid">
+          {generatedDisplayImages.map((image, index) => <figure key={`generated-${image.date}-${index}`}>
+            <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={image.url} loading="lazy" decoding="async" alt={`Obraz wygenerowany przez AI z etykietą ${image.date} — nie jest dowodem satelitarnym`} /></a>
+            <figcaption><StatusBadge value={imageOriginLabel(image)} /><b>{image.date}</b><span>{image.source}</span><small>wejście modelu dowodowego: NIE</small></figcaption>
+          </figure>)}
+        </div>
+      </section> : null}
+
       <section className="card lab-media-section">
         <div className="lab-section-title"><div><p className="eyebrow">MATERIAŁ KATALOGOWY</p><h2>Roczna galeria porównawcza</h2></div><StatusBadge value={`${result.imagery.missingYears} MISSING`} /></div>
-        <p className="lab-note">Oddzielona od wejść modelu. Landsat może być miniaturą całej obróconej sceny, nawet 300×300 — wtedy służy tylko do wyboru źródła, a nie rozpoznawania małego stawu. Obraz nie jest już przycinany; kliknięcie otwiera oryginał.</p>
+        <p className="lab-note">Oddzielona od wejść modelu. Każdy zwrócony plik musi mieć etykietę pochodzenia. Landsat może być miniaturą całej sceny, nawet 300×300 — wtedy służy tylko do wyboru źródła, a nie rozpoznawania małego stawu.</p>
         <div className="lab-imagery-grid">
           {result.imagery.slots.map(slot => {
             if (slot.status !== 'image' || !slot.image) return <article className="lab-missing-year" key={slot.year}><b>{slot.year}</b><span>BRAK OBRAZU</span><small>{slot.reason ?? 'Źródło nie zwróciło obrazu dla tego roku.'}</small></article>
             const imageKey = `gallery-${slot.year}`
             const sourceUrl = slot.image.original_url || slot.image.url
+            const originalDeclared = isExplicitOriginalSatelliteImage(slot.image)
             return <figure key={slot.year}>
               {failedImages[imageKey]
                 ? <div className="lab-image-fallback" role="status"><span>Podgląd niedostępny — pozostała karta źródłowa.</span><a href={sourceUrl} target="_blank" rel="noreferrer">Otwórz źródło ↗</a></div>
                 : <a className="lab-image-link" href={sourceUrl} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(slot.image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Obraz satelitarny dla roku ${slot.year}`} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
-              <figcaption><b>{slot.year} · {slot.image.date}</b><span>{slot.image.source}</span><small>{slot.image.render_kind ?? 'CATALOGUE BROWSE'} · {slot.image.aoi_cropped === true ? 'wycinek AOI' : 'cała scena / status AOI niepotwierdzony'} · lekki podgląd {failedImages[imageKey] ? 'niedostępny' : imageDimensions[imageKey] ?? 'sprawdzany'}</small><small>chmury: {cloudCoverLabel(slot.image.cloud_cover)} · {slot.image.scene_id ?? 'fallback bez ID sceny'}</small></figcaption>
+              <figcaption><StatusBadge value={imageOriginLabel(slot.image)} /><b>{slot.year} · {slot.image.date}</b><span>{slot.image.source}</span><small>{slot.image.product_kind ?? slot.image.render_kind ?? 'CATALOGUE BROWSE'} · {slot.image.aoi_cropped === true ? 'wycinek AOI' : 'cała scena / status AOI niepotwierdzony'} · lekki podgląd {failedImages[imageKey] ? 'niedostępny' : imageDimensions[imageKey] ?? 'sprawdzany'}</small><small>chmury: {cloudCoverLabel(slot.image.cloud_cover)} · {slot.image.scene_id ?? 'fallback bez ID sceny'} · {originalDeclared ? 'oryginalny produkt oficjalnego dostawcy' : 'pochodzenie wymaga ponownego przebiegu'}</small></figcaption>
             </figure>
           })}
         </div>

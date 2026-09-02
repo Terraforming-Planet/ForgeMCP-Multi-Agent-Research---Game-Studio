@@ -1,9 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { getVisibleWaterExtrema, screenSignals, type HazardInvestigationResult, type HydrologyScreening, type WorkerAreaAnalysis } from '../integrations/terra/hazardInvestigation'
+import { getVisibleWaterExtrema, screenSignals, verifiedOriginalModelImageCount, type HazardInvestigationResult, type HydrologyScreening, type WorkerAreaAnalysis } from '../integrations/terra/hazardInvestigation'
 
 function analysis(hydrology: HydrologyScreening): WorkerAreaAnalysis {
+  const analysisImages = [2001, 2010, 2020, 2025].map(year => ({
+    date: `${year}-07-01`,
+    source: 'NASA HLS/WELD',
+    url: `https://example.org/${year}.jpg`,
+    image_authenticity: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT' as const,
+    ai_generated: false,
+    used_as_model_input: true,
+  }))
   return {
     ai_visual_image_count: 4,
+    model_visual_image_count: 4,
+    analysis_images: analysisImages,
+    imagery_authenticity_policy: {
+      model_input_rule: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY',
+      original_model_input_count: 4,
+      derived_model_input_count: 0,
+      ai_generated_model_input_count: 0,
+      derived_display_only_count: 0,
+      ai_generated_images_present: false,
+    },
     analysis: {
       headline: 'Test',
       what_is_visible: 'A waterbody is visible.',
@@ -38,6 +56,13 @@ describe('structured hydrology screening', () => {
   it('does not turn contradictory free text into water loss when the structured state is insufficient', () => {
     const signals = screenSignals(analysis({ ...base, water_change_state: 'INSUFFICIENT_EVIDENCE' }), ['water-loss'])
     expect(signals).toEqual([])
+  })
+
+  it('fails closed when model images lack the original-satellite provenance gate', () => {
+    const worker = analysis(base)
+    worker.imagery_authenticity_policy = undefined
+    expect(verifiedOriginalModelImageCount(worker)).toBe(0)
+    expect(screenSignals(worker, ['water-loss'])).toEqual([])
   })
 
   it('does not equate a visible inlet candidate with an obstruction', () => {

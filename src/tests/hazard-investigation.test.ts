@@ -24,6 +24,15 @@ function response(body: unknown, ok = true, status = 200) {
 }
 
 function workerAnalysis() {
+  const analysisImages = [2020, 2021, 2022, 2023].map(year => ({
+    date: `${year}-04-15`,
+    source: 'NASA HLS S30',
+    url: `https://worker.example/model-${year}.jpg`,
+    image_authenticity: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT',
+    product_kind: 'SINGLE_ACQUISITION_SURFACE_REFLECTANCE',
+    ai_generated: false,
+    used_as_model_input: true,
+  }))
   return {
     service: 'terra-observation-area-analysis-v2',
     generated_at_utc: '2026-09-01T00:00:00Z',
@@ -31,7 +40,17 @@ function workerAnalysis() {
     period: { start_date: '2020-03-01', end_date: '2022-05-31' },
     depth: 'deep',
     preview_images: [],
+    analysis_images: analysisImages,
     ai_visual_image_count: 4,
+    model_visual_image_count: 4,
+    imagery_authenticity_policy: {
+      model_input_rule: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY',
+      original_model_input_count: 4,
+      derived_model_input_count: 0,
+      ai_generated_model_input_count: 0,
+      derived_display_only_count: 0,
+      ai_generated_images_present: false,
+    },
     landsat_catalog: { matched: 38, returned: 12, scenes: [], query_url: 'https://landsat.example/query', full_catalog_url: 'https://landsat.example/all' },
     analysis: {
       headline: 'Visible terrain change candidate',

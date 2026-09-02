@@ -20,13 +20,41 @@ const TEST_001_EVIDENCE_ROOT = `https://raw.githubusercontent.com/Terraforming-P
 export const TEST_001_COMPARISON_IMAGES = [
   {
     year: 2000,
-    role: 'HISTORICAL_FIXED_CROP' as const,
-    url: `${TEST_001_EVIDENCE_ROOT}/measurements_visible_pond_consensus/2000_historical_consensus_overlay.png`,
+    role: 'ORIGINAL_HISTORICAL_SATELLITE_SOURCE' as const,
+    url: `${TEST_001_EVIDENCE_ROOT}/seasonal_evidence/autumn/images/2000_2000-09-18_landsat-5_30m_2km_native.png`,
+    imageAuthenticity: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT' as const,
+    productKind: 'PINNED_NATIVE_AOI_EXPORT' as const,
+    aiGenerated: false as const,
+    usedAsModelInput: false as const,
   },
   {
     year: 2026,
-    role: 'RECENT_FIXED_CROP' as const,
+    role: 'ORIGINAL_RECENT_SATELLITE_SOURCE' as const,
+    url: `${TEST_001_EVIDENCE_ROOT}/seasonal_evidence/late_summer_2026_proxy/images/2026_2026-08-07_Sentinel-2B_10m_2km_native.png`,
+    imageAuthenticity: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT' as const,
+    productKind: 'PINNED_NATIVE_AOI_EXPORT' as const,
+    aiGenerated: false as const,
+    usedAsModelInput: false as const,
+  },
+] as const
+export const TEST_001_DERIVED_COMPARISON_IMAGES = [
+  {
+    year: 2000,
+    role: 'HISTORICAL_FIXED_CROP_WITH_CONSENSUS_OVERLAY' as const,
+    url: `${TEST_001_EVIDENCE_ROOT}/measurements_visible_pond_consensus/2000_historical_consensus_overlay.png`,
+    imageAuthenticity: 'DERIVED_ANALYTICAL_PRODUCT' as const,
+    productKind: 'RESEARCH_CONSENSUS_OVERLAY' as const,
+    aiGenerated: false as const,
+    usedAsModelInput: false as const,
+  },
+  {
+    year: 2026,
+    role: 'RECENT_FIXED_CROP_WITH_HISTORICAL_CONSENSUS_OVERLAY' as const,
     url: `${TEST_001_EVIDENCE_ROOT}/measurements_visible_pond_consensus/2026_historical_consensus_on_recent_basin.png`,
+    imageAuthenticity: 'DERIVED_ANALYTICAL_PRODUCT' as const,
+    productKind: 'RESEARCH_CONSENSUS_OVERLAY' as const,
+    aiGenerated: false as const,
+    usedAsModelInput: false as const,
   },
 ] as const
 export const TEST_001_FIELD_REPORT_URL =
@@ -150,7 +178,24 @@ export type Test001Evidence = {
     nearTotalStateTransitionSupported: true
     recentState: string
     lossPercentStatus: string
-    comparisonImages: Array<{ year: number; role: 'HISTORICAL_FIXED_CROP' | 'RECENT_FIXED_CROP'; url: string }>
+    comparisonImages: Array<{
+      year: number
+      role: 'ORIGINAL_HISTORICAL_SATELLITE_SOURCE' | 'ORIGINAL_RECENT_SATELLITE_SOURCE'
+      url: string
+      imageAuthenticity: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT'
+      productKind: 'PINNED_NATIVE_AOI_EXPORT'
+      aiGenerated: false
+      usedAsModelInput: false
+    }>
+    derivedComparisonImages: Array<{
+      year: number
+      role: 'HISTORICAL_FIXED_CROP_WITH_CONSENSUS_OVERLAY' | 'RECENT_FIXED_CROP_WITH_HISTORICAL_CONSENSUS_OVERLAY'
+      url: string
+      imageAuthenticity: 'DERIVED_ANALYTICAL_PRODUCT'
+      productKind: 'RESEARCH_CONSENSUS_OVERLAY'
+      aiGenerated: false
+      usedAsModelInput: false
+    }>
     openWaterArea2026M2: null
     exactLossPercentPublished: false
     causeEstablished: false
@@ -340,6 +385,7 @@ export async function inspectTest001Evidence(): Promise<Test001Evidence> {
       recentState,
       lossPercentStatus,
       comparisonImages: [...TEST_001_COMPARISON_IMAGES],
+      derivedComparisonImages: [...TEST_001_DERIVED_COMPARISON_IMAGES],
       openWaterArea2026M2: null,
       exactLossPercentPublished: false,
       causeEstablished: false,
