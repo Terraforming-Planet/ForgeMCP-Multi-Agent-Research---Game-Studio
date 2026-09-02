@@ -37,7 +37,10 @@ export async function registerWebMcpTools() {
   registeredContext = context
   registrationPromise = (async () => {
     let registered = 0
-    for (const tool of webmcpTools.filter((item) => item.connectionStatus !== 'NOT_CONNECTED')) {
+    // Register guarded boundary tools too. Their handlers are intentionally
+    // executable so an agent gets an explicit NOT_CONNECTED result instead of
+    // silently assuming that a Shopify cart or B2B request was completed.
+    for (const tool of webmcpTools) {
       await context?.registerTool({
         name: tool.name,
         description: tool.description,
