@@ -69,8 +69,8 @@ export type WorkerAreaAnalysis = {
   area: { place_name: string | null; latitude: number; longitude: number; radius_km: number }
   period: { start_date: string; end_date: string }
   depth: 'quick' | 'deep'
-  preview_images: Array<{ date: string; source: string; url: string; high_resolution_aoi?: boolean }>
-  analysis_images?: Array<{ date: string; source: string; url: string; high_resolution_aoi?: boolean }>
+  preview_images: Array<{ date: string; source: string; url: string; high_resolution_aoi?: boolean; evidence_role?: string | null; nominal_resolution_m?: number | null; cloud_cover?: number | null }>
+  analysis_images?: Array<{ date: string; source: string; url: string; high_resolution_aoi?: boolean; evidence_role?: string | null; nominal_resolution_m?: number | null; cloud_cover?: number | null }>
   ai_visual_image_count: number
   visual_preflight_warnings?: string[]
   landsat_catalog: {
@@ -126,7 +126,7 @@ export type YearlyImageSlot = {
     scene_id: string | null
     cloud_cover: number | null
     cloud_preference_met: boolean
-    asset_kind?: 'FULL_RESOLUTION_BROWSE' | 'CATALOGUE_THUMBNAIL' | 'NASA_GIBS_AOI_FALLBACK'
+    asset_kind?: 'FULL_RESOLUTION_BROWSE' | 'CATALOGUE_THUMBNAIL' | 'NASA_GIBS_AOI_FALLBACK' | 'NASA_WELD_30M_AOI' | 'NASA_HLS_L30_AOI'
     render_kind?: 'CATALOGUE_BROWSE' | 'NATURAL_COLOR_RGB'
     aoi_cropped?: boolean
     analysis_eligible?: boolean
@@ -473,6 +473,7 @@ export async function analyzeMultiyearImagery(input: HazardInvestigationInput, l
       end_date: range.endDate,
       place_name: input.regionQuery,
       depth: input.depth === 'deep' ? 'deep' : 'quick',
+      season: input.season,
     }),
   })
   return readJson<WorkerAreaAnalysis>(response)
@@ -823,7 +824,7 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
   ))
 
   if (analysis) provenance.push(sourceProvenance('Representative official/public EO imagery and Landsat catalogue', areaLabel, 'analyze_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/analyze`, { period: analysis.period, depth: analysis.depth, aiVisualImageCount: analysis.ai_visual_image_count, landsatMatched: analysis.landsat_catalog.matched }, 'Model oglądał wyłącznie liczbę obrazów podaną w aiVisualImageCount; pozostałe wpisy katalogu to metadane.'))
-  provenance.push(sourceProvenance('Year-by-year Landsat browse / NASA GIBS fallback gallery', areaLabel, 'retrieve_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/yearly-gallery`, { years: gallery.requestedYears, season: input.season, returnedImages: gallery.slots.filter(item => item.status === 'image').length }, 'Galeria służy do kontroli i wyboru scen. Nie każdy obraz został obejrzany przez model.'))
+  provenance.push(sourceProvenance('Year-by-year NASA HLS/WELD AOI, USGS browse and NASA GIBS fallback gallery', areaLabel, 'retrieve_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/yearly-gallery`, { years: gallery.requestedYears, season: input.season, returnedImages: gallery.slots.filter(item => item.status === 'image').length }, 'Galeria służy do kontroli i wyboru scen. Nie każdy obraz został obejrzany przez model.'))
   provenance.push(...elevation.provenance, ...events.provenance)
   if (analogues) provenance.push(...analogues.provenance)
   if (test001Context) provenance.push(...test001Context.evidence.provenance, ...test001Context.reference.provenance)
@@ -844,7 +845,7 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
       )
     }
   }
-  observations.push({ evidenceClass: 'CATALOGUE_METADATA', statement: `${gallery.slots.filter(item => item.status === 'image').length} z ${gallery.requestedYears.length} żądanych lat ma oficjalny obraz podglądowy lub jawny fallback.`, source: 'USGS Landsat / NASA GIBS', limitation: 'Metadane i podgląd nie oznaczają automatycznego pomiaru zmiany.' })
+  observations.push({ evidenceClass: 'CATALOGUE_METADATA', statement: `${gallery.slots.filter(item => item.status === 'image').length} z ${gallery.requestedYears.length} żądanych lat ma oficjalny obraz AOI, podgląd lub jawny fallback.`, source: 'NASA HLS/WELD/GIBS · USGS Landsat', limitation: 'Metadane i podgląd nie oznaczają automatycznego pomiaru zmiany.' })
   if (elevation.state === 'OBSERVATION') observations.push({ evidenceClass: 'OBSERVATION', statement: `Pobrano ${elevation.samples.length} próbek Copernicus DEM w profilu przez AOI.`, source: 'Open-Meteo / Copernicus DEM GLO-90', limitation: 'Próbki rastrowe nie są niwelacją terenową ani automatycznym kierunkiem przepływu.' })
   for (const item of events.observations) observations.push({ evidenceClass: 'CONTEXT_ONLY', statement: `${item.title} (${item.date})`, source: `NASA EONET · ${item.source}`, limitation: 'Bieżący kontekst z szerokiego filtra; nie ustanawia związku z badaną zmianą.' })
   if (test001Context) observations.push({ evidenceClass: 'ANOMALY', statement: `TEST 001: publiczny zapis wspiera historyczną zmianę stanu widocznego lustra stawu o centralnym historycznym obrysie ${test001Context.evidence.recordedResult.historicalPersistentFootprintHa.toFixed(4)} ha.`, source: 'Terra TEST 001 recorded measurement', limitation: 'Dokładny obszar otwartej wody w 2026, procent utraty i przyczyna nie są opublikowanym wynikiem.' })

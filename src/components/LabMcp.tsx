@@ -513,7 +513,7 @@ export function LabMcp() {
               {failedImages[imageKey]
                 ? <div className="lab-image-fallback" role="status"><span>Nie udało się pobrać lekkiego podglądu.</span><a href={image.url} target="_blank" rel="noreferrer">Otwórz źródło ↗</a></div>
                 : <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Obraz wejściowy modelu ${image.date}`} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
-              <figcaption><b>{image.date}</b><span>{image.source}</span><small>NATURAL-COLOR RGB · lekki podgląd {imageDimensions[imageKey] ?? 'sprawdzany'} · kliknij, aby otworzyć oryginał</small></figcaption>
+              <figcaption><b>{image.date}</b><span>{image.source}</span><small>{image.evidence_role ?? 'TEMPORAL_CONTEXT'} · {image.nominal_resolution_m ? `${image.nominal_resolution_m} m` : 'rozdzielczość zależna od źródła'} · lekki podgląd {imageDimensions[imageKey] ?? 'sprawdzany'}</small><small>chmury w metadanych: {cloudCoverLabel(image.cloud_cover ?? null)} · kliknij, aby otworzyć oryginał</small></figcaption>
             </figure>
           })}
         </div>

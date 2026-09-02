@@ -47,7 +47,14 @@ export function imageryDisplayFilter(settings: ImageryDisplaySettings) {
   return `brightness(${settings.brightness}%) contrast(${settings.contrast}%) saturate(${settings.saturation}%) hue-rotate(${settings.hue}deg)`
 }
 
-export type PreviewImage = { date: string; source: string; url: string }
+export type PreviewImage = {
+  date: string
+  source: string
+  url: string
+  evidence_role?: string | null
+  nominal_resolution_m?: number | null
+  cloud_cover?: number | null
+}
 
 export function selectModelPreviewImages(images: PreviewImage[], inspectedCount: number) {
   const count = Math.min(images.length, Math.max(0, Math.trunc(inspectedCount)))
