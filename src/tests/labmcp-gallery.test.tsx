@@ -131,4 +131,61 @@ describe('LabTerra image gallery resilience', () => {
     expect(screen.getByRole('heading', { name: 'TEST 001' })).toBeInTheDocument()
     expect(screen.getByAltText('Obraz satelitarny dla roku 2020')).toBeInTheDocument()
   })
+
+  it('sends the corrected 500 m TEST 001 focus and shows the fixed-crop finding', async () => {
+    const fixedResult = investigationResult()
+    fixedResult.signalState = 'RECORDED_ANOMALY'
+    fixedResult.test001Context = {
+      evidence: {
+        recordedResult: {
+          correctedPondSeed: { lat: 53.594595, lon: 19.00014 },
+          requestedFrameWidthM: 500,
+          evidenceCropWidthM: 468.75,
+          mostVisibleHistoricalYear: 2008,
+          mostVisibleHistoricalAreaM2: 20_780.8,
+          mostVisibleHistoricalAreaHa: 2.0781,
+          leastVisibleEndpointYear: 2026,
+          approximateDisappearedHistoricalFootprintM2: 17_722.2,
+          approximateDisappearedHistoricalFootprintHa: 1.7722,
+          nearTotalStateTransitionSupported: true,
+          historicalPersistentFootprintM2: 17_722.2,
+          historicalPersistentFootprintHa: 1.7722,
+          repeatSupportedRangeM2: [16_269.3, 21_642],
+          broadHistoricalUpperEnvelopeM2: 23_978.3,
+          overlap1990WithCentralConsensusPercent: 92.528,
+          recentState: 'No comparable persistent dark-water footprint is visible.',
+          lossPercentStatus: 'Near-total; exact percentage uncertainty-gated.',
+          comparisonImages: [
+            { year: 2000, role: 'HISTORICAL_FIXED_CROP', url: 'https://example.org/test001-2000.png' },
+            { year: 2026, role: 'RECENT_FIXED_CROP', url: 'https://example.org/test001-2026.png' },
+          ],
+          stateChangeSupported: true,
+          openWaterArea2026M2: null,
+          exactLossPercentPublished: false,
+          causeEstablished: false,
+          sourceMethod: 'Fixed-crop consensus',
+          sourceYears: [1998, 1999, 2000, 2004, 2005, 2006, 2008],
+        },
+      },
+      reference: { status: 'REFERENCE_DATASET_UNRESOLVED', comparisonFinding: 'Not comparable.', requiredHumanAction: 'Select dataset.' },
+      connectivity: [],
+    } as unknown as HazardInvestigationResult['test001Context']
+    const execute = vi.fn().mockResolvedValue({ state: 'WARNING', verification: 'WARNING', data: fixedResult })
+    vi.mocked(getTool).mockReturnValue({ execute } as never)
+
+    render(<MemoryRouter><LabMcp /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Uruchom agentów i analizę wieloletnią' }))
+
+    await screen.findByRole('heading', { name: 'Silnie potwierdzony zanik historycznego lustra wody' })
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      caseId: 'test-001-forest-pond-kuchnia',
+      focusLatitude: 53.594595,
+      focusLongitude: 19.00014,
+      focusRadiusKm: 0.25,
+    }))
+    expect(screen.getByText(/niemal całkowity zanik historycznego trwałego lustra tego stawu/i)).toBeInTheDocument()
+    expect(screen.getByText(/≈ 1.77 ha/)).toBeInTheDocument()
+    expect(screen.getByAltText('Staw TEST 001 w stałym kadrze historycznym z 2000 roku')).toBeInTheDocument()
+    expect(screen.getByAltText('Basen stawu TEST 001 w tym samym stałym kadrze w 2026 roku')).toBeInTheDocument()
+  })
 })

@@ -43,6 +43,20 @@ export type ResearchArchiveEntry = {
     method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES'
     basis: string
   }
+  test001Finding?: {
+    focus: { latitude: number; longitude: number; frameWidthM: number }
+    state: 'NEAR_TOTAL_HISTORICAL_OPEN_WATER_STATE_TRANSITION_STRONGLY_SUPPORTED'
+    historicalPersistentFootprintHa: number
+    repeatSupportedRangeHa: [number, number]
+    approximateDisappearedHistoricalFootprintHa: number
+    mostVisibleHistoricalYear: number
+    mostVisibleHistoricalAreaHa: number
+    leastVisibleEndpointYear: 2026
+    exactOpenWaterArea2026M2: null
+    exactLossPercent: null
+    causeStatus: 'NOT_ESTABLISHED'
+    alertStatus: 'HIGH_PRIORITY_MONITORING_ANOMALY_REQUIRES_INVESTIGATION'
+  }
   imagery: { inspectedByModel: number; galleryImages: number; requestedYears: number; missingYears: number }
   sources: Array<{ name: string; provider: string; state: string; sourceUrl: string }>
   limitations: string[]
@@ -60,19 +74,22 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
   const visual = result.imagery.analysis?.analysis
   const hydrology = visual?.hydrology_screening
   const waterExtrema = getVisibleWaterExtrema(result)
+  const test001 = result.test001Context?.evidence.recordedResult
   const waterExtremaSummary = waterExtrema?.status === 'ESTABLISHED'
     ? `Widoczna woda — najwięcej: ${waterExtrema.most_visible_water_year}; najmniej: ${waterExtrema.least_visible_water_year}; porównane lata: ${waterExtrema.compared_years.join(', ')}.`
     : waterExtrema
       ? `Widoczna woda — rok maksimum i minimum nieustalony: ${waterExtrema.basis}`
       : undefined
   const shortSummary = [
+    test001 ? `TEST 001: powtarzalne obrazy silnie wspierają niemal całkowity zanik historycznego trwałego lustra; szacowany zanik obrysu około ${test001.approximateDisappearedHistoricalFootprintHa.toFixed(2)} ha.` : undefined,
+    test001 ? `W zmierzonych latach historycznych największy widoczny obrys: ${test001.mostVisibleHistoricalYear} (${test001.mostVisibleHistoricalAreaHa.toFixed(2)} ha); najmniej widocznej wody: punkt końcowy ${test001.leastVisibleEndpointYear}.` : undefined,
     visual?.headline,
     visual?.change_over_time,
     visual?.water_assessment,
     waterExtremaSummary,
     hydrology ? `Woda: ${hydrology.water_change_state}; dopływy/odpływy: ${hydrology.inflow_outflow_status}; przyczyna nieustalona.` : undefined,
     result.verification.reason,
-  ].filter((value): value is string => Boolean(value?.trim())).map(value => compact(value)).slice(0, 6)
+  ].filter((value): value is string => Boolean(value?.trim())).map(value => compact(value)).slice(0, 8)
 
   if (!shortSummary.length) {
     shortSummary.push(...result.observations.slice(0, 3).map(item => compact(item.statement)))
@@ -119,6 +136,24 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
       comparedYears: waterExtrema.compared_years,
       method: waterExtrema.method,
       basis: compact(waterExtrema.basis),
+    } : undefined,
+    test001Finding: test001 ? {
+      focus: {
+        latitude: test001.correctedPondSeed.lat,
+        longitude: test001.correctedPondSeed.lon,
+        frameWidthM: test001.requestedFrameWidthM,
+      },
+      state: 'NEAR_TOTAL_HISTORICAL_OPEN_WATER_STATE_TRANSITION_STRONGLY_SUPPORTED',
+      historicalPersistentFootprintHa: test001.historicalPersistentFootprintHa,
+      repeatSupportedRangeHa: [test001.repeatSupportedRangeM2[0] / 10_000, test001.repeatSupportedRangeM2[1] / 10_000],
+      approximateDisappearedHistoricalFootprintHa: test001.approximateDisappearedHistoricalFootprintHa,
+      mostVisibleHistoricalYear: test001.mostVisibleHistoricalYear,
+      mostVisibleHistoricalAreaHa: test001.mostVisibleHistoricalAreaHa,
+      leastVisibleEndpointYear: test001.leastVisibleEndpointYear,
+      exactOpenWaterArea2026M2: null,
+      exactLossPercent: null,
+      causeStatus: 'NOT_ESTABLISHED',
+      alertStatus: 'HIGH_PRIORITY_MONITORING_ANOMALY_REQUIRES_INVESTIGATION',
     } : undefined,
     imagery: {
       inspectedByModel: result.imagery.visuallyInspectedByModel,
@@ -208,6 +243,26 @@ function isArchiveEntry(value: unknown): value is ResearchArchiveEntry {
         && value.waterExtrema.leastVisibleWaterYear === null
     }
   }
+  const test001FindingValid = value.test001Finding === undefined || (
+    isRecord(value.test001Finding)
+    && isRecord(value.test001Finding.focus)
+    && isFiniteNumber(value.test001Finding.focus.latitude)
+    && isFiniteNumber(value.test001Finding.focus.longitude)
+    && isFiniteNumber(value.test001Finding.focus.frameWidthM)
+    && value.test001Finding.state === 'NEAR_TOTAL_HISTORICAL_OPEN_WATER_STATE_TRANSITION_STRONGLY_SUPPORTED'
+    && isFiniteNumber(value.test001Finding.historicalPersistentFootprintHa)
+    && Array.isArray(value.test001Finding.repeatSupportedRangeHa)
+    && value.test001Finding.repeatSupportedRangeHa.length === 2
+    && value.test001Finding.repeatSupportedRangeHa.every(isFiniteNumber)
+    && isFiniteNumber(value.test001Finding.approximateDisappearedHistoricalFootprintHa)
+    && Number.isInteger(value.test001Finding.mostVisibleHistoricalYear)
+    && isFiniteNumber(value.test001Finding.mostVisibleHistoricalAreaHa)
+    && value.test001Finding.leastVisibleEndpointYear === 2026
+    && value.test001Finding.exactOpenWaterArea2026M2 === null
+    && value.test001Finding.exactLossPercent === null
+    && value.test001Finding.causeStatus === 'NOT_ESTABLISHED'
+    && value.test001Finding.alertStatus === 'HIGH_PRIORITY_MONITORING_ANOMALY_REQUIRES_INVESTIGATION'
+  )
 
   return value.schemaVersion === '1.0'
     && typeof value.id === 'string'
@@ -232,6 +287,7 @@ function isArchiveEntry(value: unknown): value is ResearchArchiveEntry {
     && hypothesesValid
     && hydrologyValid
     && waterExtremaValid
+    && test001FindingValid
     && isFiniteNumber(imagery.inspectedByModel)
     && isFiniteNumber(imagery.galleryImages)
     && isFiniteNumber(imagery.requestedYears)

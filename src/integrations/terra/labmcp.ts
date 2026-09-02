@@ -3,7 +3,9 @@ import type { ProvenanceRecord, VerificationResult } from '../../types/core'
 export const TEST_001_AOI = {
   id: 'terra-test-001-forest-pond-kuchnia',
   name: 'Forest Pond near Lake Kuchnia',
-  center: { lat: 53.5914, lon: 19.010717 },
+  center: { lat: 53.594595, lon: 19.00014 },
+  legacyRegionalCenter: { lat: 53.5914, lon: 19.010717 },
+  pondFocus: { lat: 53.594595, lon: 19.00014, requestedFrameWidthM: 500, evidenceCropWidthM: 468.75 },
   widthM: 2_000,
   heightM: 2_000,
   workingCrs: 'EPSG:2180',
@@ -13,6 +15,20 @@ export const TEST_001_AOI = {
 
 export const TEST_001_MEASUREMENT_URL =
   'https://raw.githubusercontent.com/Terraforming-Planet/Polar-Sun-Moon-Analysis/annual-best-53-591400-19-010717/experiments/experiment_001_pond_forest_kuchnia/measurements_visible_pond_consensus/visible_pond_consensus_measurement.json'
+export const TEST_001_EVIDENCE_REVISION = 'b139209dea2aa07414891597ac8aa59a450e1d2d'
+const TEST_001_EVIDENCE_ROOT = `https://raw.githubusercontent.com/Terraforming-Planet/Polar-Sun-Moon-Analysis/${TEST_001_EVIDENCE_REVISION}/experiments/experiment_001_pond_forest_kuchnia`
+export const TEST_001_COMPARISON_IMAGES = [
+  {
+    year: 2000,
+    role: 'HISTORICAL_FIXED_CROP' as const,
+    url: `${TEST_001_EVIDENCE_ROOT}/measurements_visible_pond_consensus/2000_historical_consensus_overlay.png`,
+  },
+  {
+    year: 2026,
+    role: 'RECENT_FIXED_CROP' as const,
+    url: `${TEST_001_EVIDENCE_ROOT}/measurements_visible_pond_consensus/2026_historical_consensus_on_recent_basin.png`,
+  },
+] as const
 export const TEST_001_FIELD_REPORT_URL =
   'https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/published/experiment-001/field-observation-report.json'
 export const VISTULA_REFERENCE_URL =
@@ -34,7 +50,18 @@ export const GLOBAL_CASEBOOK_URLS = [
 
 type PondMeasurement = {
   method?: string
+  geometry?: {
+    full_display_size_px?: number
+    full_crop_ground_size_m?: number
+    pond_crop_box_full_display_px?: number[]
+    corrected_pond_seed_approx?: { lat?: number; lon?: number }
+  }
   historical_consensus_years?: number[]
+  individual_historical_visible_components?: Array<{
+    year?: number
+    visible_component_area_m2?: number
+    visible_component_area_ha?: number
+  }>
   recommended_working_measurement?: {
     persistent_historical_visible_footprint_m2?: number
     persistent_historical_visible_footprint_ha?: number
@@ -51,6 +78,7 @@ type PondMeasurement = {
     current_central_result?: string
     precision_warning?: string
   }
+  overlays?: string[]
 }
 
 type FieldReport = {
@@ -110,6 +138,19 @@ export type Test001Evidence = {
     repeatSupportedRangeM2: [number, number]
     broadHistoricalUpperEnvelopeM2: number
     overlap1990WithCentralConsensusPercent: number
+    correctedPondSeed: { lat: number; lon: number }
+    requestedFrameWidthM: number
+    evidenceCropWidthM: number
+    mostVisibleHistoricalYear: number
+    mostVisibleHistoricalAreaM2: number
+    mostVisibleHistoricalAreaHa: number
+    leastVisibleEndpointYear: 2026
+    approximateDisappearedHistoricalFootprintM2: number
+    approximateDisappearedHistoricalFootprintHa: number
+    nearTotalStateTransitionSupported: true
+    recentState: string
+    lossPercentStatus: string
+    comparisonImages: Array<{ year: number; role: 'HISTORICAL_FIXED_CROP' | 'RECENT_FIXED_CROP'; url: string }>
     openWaterArea2026M2: null
     exactLossPercentPublished: false
     causeEstablished: false
@@ -259,6 +300,20 @@ export async function inspectTest001Evidence(): Promise<Test001Evidence> {
   const upperM2 = finite(recorded.repeat_supported_upper_m2, 'repeat-supported upper bound')
   const broadM2 = finite(recorded.broad_union_upper_m2, 'broad historical envelope')
   const overlap = finite(recorded['1990_overlap_fraction'], '1990 overlap') * 100
+  const pondSeed = measurement.geometry?.corrected_pond_seed_approx
+  const correctedLat = finite(pondSeed?.lat, 'corrected pond latitude')
+  const correctedLon = finite(pondSeed?.lon, 'corrected pond longitude')
+  const historicalComponents = (measurement.individual_historical_visible_components ?? []).flatMap(item => (
+    Number.isInteger(item.year)
+      && typeof item.visible_component_area_m2 === 'number' && Number.isFinite(item.visible_component_area_m2)
+      && typeof item.visible_component_area_ha === 'number' && Number.isFinite(item.visible_component_area_ha)
+      ? [{ year: item.year as number, areaM2: item.visible_component_area_m2, areaHa: item.visible_component_area_ha }]
+      : []
+  ))
+  const mostVisibleHistorical = historicalComponents.reduce((best, item) => item.areaM2 > best.areaM2 ? item : best, historicalComponents[0])
+  if (!mostVisibleHistorical) throw new Error('TEST 001 evidence did not contain the historical year ranking.')
+  const recentState = recorded['2026_state'] ?? 'No comparable persistent dark-water footprint is visible in the fixed 2026 crop; exact residual area remains uncertainty-gated.'
+  const lossPercentStatus = recorded.loss_percent_status ?? 'Near-total state transition supported; exact percentage remains uncertainty-gated.'
 
   return {
     classification: 'ANOMALY',
@@ -272,6 +327,19 @@ export async function inspectTest001Evidence(): Promise<Test001Evidence> {
       repeatSupportedRangeM2: [lowerM2, upperM2],
       broadHistoricalUpperEnvelopeM2: broadM2,
       overlap1990WithCentralConsensusPercent: overlap,
+      correctedPondSeed: { lat: correctedLat, lon: correctedLon },
+      requestedFrameWidthM: TEST_001_AOI.pondFocus.requestedFrameWidthM,
+      evidenceCropWidthM: TEST_001_AOI.pondFocus.evidenceCropWidthM,
+      mostVisibleHistoricalYear: mostVisibleHistorical.year,
+      mostVisibleHistoricalAreaM2: mostVisibleHistorical.areaM2,
+      mostVisibleHistoricalAreaHa: mostVisibleHistorical.areaHa,
+      leastVisibleEndpointYear: 2026,
+      approximateDisappearedHistoricalFootprintM2: historicalM2,
+      approximateDisappearedHistoricalFootprintHa: historicalHa,
+      nearTotalStateTransitionSupported: true,
+      recentState,
+      lossPercentStatus,
+      comparisonImages: [...TEST_001_COMPARISON_IMAGES],
       openWaterArea2026M2: null,
       exactLossPercentPublished: false,
       causeEstablished: false,
@@ -497,7 +565,7 @@ export async function runLabMcpTest001(input: { referenceQuery?: string; analogu
       'Ground/in-situ hydrology is absent.',
     ],
     timestamp: new Date().toISOString(),
-    reason: 'The historical open-water state-change signal is recorded and source-backed, but a current hazard level and local hydrological cause are not verified.',
+    reason: 'The near-total disappearance of the historical persistent open-water-type footprint is strongly supported by the recorded fixed-crop imagery, but exact 2026 residual area, current hazard severity and local hydrological cause are not verified.',
   }
 
   return {
@@ -518,7 +586,7 @@ export async function runLabMcpTest001(input: { referenceQuery?: string; analogu
     connectivityContext: inspectLocalHydrologyContext(),
     analogues,
     hypothesisMatrix: [
-      { id: 'H0', hypothesis: 'Seasonality or measurement uncertainty explains the whole signal.', evidence: 'CONTRADICTS', reason: 'The recorded footprint is repeat-supported across multiple historical years, but the exact 2026 endpoint remains uncertainty-gated.' },
+      { id: 'H0', hypothesis: 'Seasonality or measurement uncertainty explains the whole signal.', evidence: 'CONTRADICTS', reason: 'The historical footprint repeats across multiple years and the 2026 basin lacks a comparable persistent dark-water footprint; exact residual area remains uncertainty-gated.' },
       { id: 'H1', hypothesis: 'Regional precipitation/PET deficit explains the change.', evidence: 'MISSING', reason: 'No matched ERA5-Land, E-OBS or local meteorological comparison was executed in this run.' },
       { id: 'H2', hypothesis: 'Local inflow/outflow connectivity changed.', evidence: 'MISSING', reason: 'The author report motivates the test but is not independent infrastructure or flow evidence.' },
       { id: 'H3', hypothesis: 'Drainage, abstraction or land-use change contributed.', evidence: 'MISSING', reason: 'Official infrastructure chronology, permits and groundwater observations are not attached.' },
@@ -533,7 +601,7 @@ export async function runLabMcpTest001(input: { referenceQuery?: string; analogu
       'Inspect official hydrology, drainage, culvert, ditch and water-management records.',
       'Collect fixed-GPS photos, water level, inflow/outflow and above/below-obstruction measurements; do not remove any obstruction without the responsible authority.',
     ],
-    conclusion: 'Confirmed: the public TEST 001 record supports a historical open-water state change. Not confirmed: an exact 2026 loss percentage, a current hazard severity, a Toruń comparison, or any cause. The correct LabMCP output is HYPOTHESIS with QA WARNING, not VERIFIED FINDING.',
+    conclusion: 'Strongly supported by the public fixed-crop record: near-total disappearance of the historical persistent open-water-type footprint, with a central historical area near 1.77 ha. Not established: exact residual water area in 2026, exact loss percentage, current hazard severity, the Toruń comparison or any cause. The alert remains a high-priority monitoring hypothesis requiring human and field verification.',
     provenance: [
       ...evidence.provenance,
       ...reference.provenance,

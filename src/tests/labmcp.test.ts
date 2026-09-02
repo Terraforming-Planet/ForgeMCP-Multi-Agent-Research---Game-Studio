@@ -9,7 +9,12 @@ import {
 
 const measurement = {
   method: 'Visible-pond multi-year consensus',
-  historical_consensus_years: [1990, 1991, 1992],
+  geometry: { corrected_pond_seed_approx: { lat: 53.594595, lon: 19.00014 } },
+  historical_consensus_years: [1998, 1999, 2000, 2004, 2005, 2006, 2008],
+  individual_historical_visible_components: [
+    { year: 2000, visible_component_area_m2: 18_563.2, visible_component_area_ha: 1.8563 },
+    { year: 2008, visible_component_area_m2: 20_780.8, visible_component_area_ha: 2.0781 },
+  ],
   recommended_working_measurement: {
     persistent_historical_visible_footprint_m2: 17_722.2,
     persistent_historical_visible_footprint_ha: 1.7722,
@@ -88,6 +93,13 @@ describe('LabMCP TEST 001 truth gates', () => {
     expect(result.environmentalState).toBe('HYPOTHESIS')
     expect(result.qaStatus).toBe('WARNING')
     expect(result.evidence.recordedResult.historicalPersistentFootprintM2).toBe(17_722.2)
+    expect(result.evidence.recordedResult.correctedPondSeed).toEqual({ lat: 53.594595, lon: 19.00014 })
+    expect(result.evidence.recordedResult.requestedFrameWidthM).toBe(500)
+    expect(result.evidence.recordedResult.mostVisibleHistoricalYear).toBe(2008)
+    expect(result.evidence.recordedResult.mostVisibleHistoricalAreaHa).toBe(2.0781)
+    expect(result.evidence.recordedResult.leastVisibleEndpointYear).toBe(2026)
+    expect(result.evidence.recordedResult.approximateDisappearedHistoricalFootprintHa).toBe(1.7722)
+    expect(result.evidence.recordedResult.nearTotalStateTransitionSupported).toBe(true)
     expect(result.evidence.recordedResult.openWaterArea2026M2).toBeNull()
     expect(result.evidence.recordedResult.exactLossPercentPublished).toBe(false)
     expect(result.evidence.recordedResult.causeEstablished).toBe(false)

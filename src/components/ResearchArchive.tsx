@@ -4,7 +4,23 @@ import { HAZARD_LABELS, type HazardType } from '../integrations/terra/hazardInve
 import { readResearchArchive, type ResearchArchiveEntry } from '../lib/researchArchive'
 import { StatusBadge } from './StatusBadge'
 
+function ArchivedTest001Finding({ entry }: { entry: ResearchArchiveEntry }) {
+  const finding = entry.test001Finding
+  if (!finding) return null
+  return <section className="lab-test001-focus" aria-label="Zapisany wynik TEST 001">
+    <div className="lab-section-title"><h3>TEST 001 — zanik historycznego lustra</h3><StatusBadge value="HIGH PRIORITY ANOMALY" /></div>
+    <p><b>Silnie wspierany wynik:</b> niemal całkowity zanik historycznego trwałego obrysu wody, około {finding.approximateDisappearedHistoricalFootprintHa.toFixed(2)} ha.</p>
+    <div className="lab-metrics lab-water-extrema-metrics">
+      <article><b>{finding.mostVisibleHistoricalYear}</b><span>najwięcej w zmierzonych latach · {finding.mostVisibleHistoricalAreaHa.toFixed(2)} ha</span></article>
+      <article><b>{finding.leastVisibleEndpointYear}</b><span>najmniej widocznej wody</span></article>
+      <article><b>{finding.focus.frameWidthM} m</b><span>stały kadr tego samego stawu</span></article>
+    </div>
+    <p className="lab-note">Historyczny obrys {finding.historicalPersistentFootprintHa.toFixed(2)} ha; zakres powtarzalnych obrazów {finding.repeatSupportedRangeHa[0].toFixed(2)}–{finding.repeatSupportedRangeHa[1].toFixed(2)} ha. Dokładna resztkowa powierzchnia 2026, dokładny procent i przyczyna pozostają nieustalone.</p>
+  </section>
+}
+
 function ArchivedWaterExtrema({ entry }: { entry: ResearchArchiveEntry }) {
+  if (entry.test001Finding) return null
   const waterHazard = entry.hazards.some(hazard => ['water-loss', 'flow-obstruction', 'flood'].includes(hazard))
   if (!waterHazard) return null
   const extrema = entry.waterExtrema ?? {
@@ -53,6 +69,7 @@ export function ResearchArchive() {
       {entries.map(entry => <article className="card lab-archive-entry" key={entry.id}>
         <div className="lab-section-title"><div><p className="eyebrow">{new Date(entry.savedAt).toLocaleString('pl-PL')}</p><h2>{entry.title}</h2></div><div className="lab-status-stack"><StatusBadge value={entry.classification} /><StatusBadge value={entry.verificationState} /></div></div>
         <p><b>AOI:</b> promień {entry.area.radiusKm} km · {entry.period.startYear}–{entry.period.endYear} · {entry.period.season}</p>
+        <ArchivedTest001Finding entry={entry} />
         <ArchivedWaterExtrema entry={entry} />
         <ul>{entry.shortSummary.map((item, index) => <li key={`${entry.id}-summary-${index}`}>{item}</li>)}</ul>
         {entry.hydrology ? <details><summary>Dopływy, odpływy i ubytek wody</summary>
