@@ -487,6 +487,15 @@ small {
   margin-top: 0.3rem;
 }
 
+.lab-water-extrema {
+  border-color: #3185a4;
+  background: linear-gradient(135deg, #0d1731, #0a2936);
+}
+
+.lab-water-extrema-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .lab-imagery-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
@@ -517,6 +526,23 @@ small {
   background: #050a12;
   cursor: zoom-in;
   contain: paint;
+}
+
+.lab-image-fallback {
+  display: grid;
+  place-content: center;
+  gap: 0.65rem;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  padding: 1rem;
+  text-align: center;
+  color: #d9e8f6;
+  background: #07101e;
+}
+
+.lab-image-fallback a {
+  color: #7be2ff;
+  font-weight: 700;
 }
 
 .lab-media-gate {

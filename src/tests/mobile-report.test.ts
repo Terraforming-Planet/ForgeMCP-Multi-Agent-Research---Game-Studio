@@ -16,6 +16,23 @@ describe('mobile LabTerra report safeguards', () => {
     expect(mobilePreviewUrl(thumbnail)).toBe(thumbnail)
   })
 
+  it('scales a NASA WMS URL nested inside the Worker image proxy', () => {
+    const nested = 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&WIDTH=1100&HEIGHT=1100&TIME=2026-09-01'
+    const proxy = `https://terra-observation-evidence-explainer.xodobrox.workers.dev/research/image?${new URLSearchParams({ url: nested })}`
+    const preview = new URL(mobilePreviewUrl(proxy))
+    const scaledNested = new URL(preview.searchParams.get('url')!)
+
+    expect(scaledNested.searchParams.get('WIDTH')).toBe('640')
+    expect(scaledNested.searchParams.get('HEIGHT')).toBe('640')
+  })
+
+  it('scales a direct Copernicus Sentinel WMS preview', () => {
+    const original = 'https://sh.dataspace.copernicus.eu/ogc/wms/example?SERVICE=WMS&REQUEST=GetMap&WIDTH=2048&HEIGHT=2048'
+    const preview = new URL(mobilePreviewUrl(original))
+    expect(preview.searchParams.get('WIDTH')).toBe('640')
+    expect(preview.searchParams.get('HEIGHT')).toBe('640')
+  })
+
   it('keeps the first report view concise and leaves the full text for the extended view', () => {
     const long = Array.from({ length: 100 }, () => 'hydrology').join(' ')
     const excerpt = compactReportText(long, 80)

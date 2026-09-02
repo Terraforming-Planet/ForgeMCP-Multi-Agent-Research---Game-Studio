@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screenSignals, type HydrologyScreening, type WorkerAreaAnalysis } from '../integrations/terra/hazardInvestigation'
+import { getVisibleWaterExtrema, screenSignals, type HazardInvestigationResult, type HydrologyScreening, type WorkerAreaAnalysis } from '../integrations/terra/hazardInvestigation'
 
 function analysis(hydrology: HydrologyScreening): WorkerAreaAnalysis {
   return {
@@ -44,5 +44,73 @@ describe('structured hydrology screening', () => {
     expect(screenSignals(analysis(base), ['flow-obstruction'])).toEqual([])
     const signals = screenSignals(analysis({ ...base, candidate_features: ['blocked culvert candidate'] }), ['flow-obstruction'])
     expect(signals[0]?.hazardType).toBe('flow-obstruction')
+  })
+
+  it('keeps only a validated most/least visible-water ranking', () => {
+    const hydrology: HydrologyScreening = {
+      ...base,
+      visible_water_extrema: {
+        status: 'ESTABLISHED',
+        most_visible_water_year: 2001,
+        least_visible_water_year: 2025,
+        compared_years: [2001, 2012, 2025],
+        method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES',
+        basis: 'Matched-season AOI images are interpretable.',
+      },
+    }
+    const result = {
+      hazards: ['water-loss'],
+      imagery: { visuallyInspectedByModel: 3, analysis: analysis(hydrology) },
+    } as unknown as HazardInvestigationResult
+    expect(getVisibleWaterExtrema(result)?.most_visible_water_year).toBe(2001)
+    expect(getVisibleWaterExtrema(result)?.least_visible_water_year).toBe(2025)
+  })
+
+  it('fails closed when an extrema year was not among compared years', () => {
+    const hydrology: HydrologyScreening = {
+      ...base,
+      visible_water_extrema: {
+        status: 'ESTABLISHED',
+        most_visible_water_year: 1990,
+        least_visible_water_year: 2025,
+        compared_years: [2001, 2025],
+        method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES',
+        basis: 'Malformed upstream ranking.',
+      },
+    }
+    const result = {
+      hazards: ['water-loss'],
+      imagery: { visuallyInspectedByModel: 2, analysis: analysis(hydrology) },
+    } as unknown as HazardInvestigationResult
+    expect(getVisibleWaterExtrema(result)?.status).toBe('INSUFFICIENT_EVIDENCE')
+    expect(getVisibleWaterExtrema(result)?.most_visible_water_year).toBeNull()
+  })
+
+  it('fails closed when a TP26 ranking contains a coarse-only year', () => {
+    const hydrology: HydrologyScreening = {
+      ...base,
+      visible_water_extrema: {
+        status: 'ESTABLISHED',
+        most_visible_water_year: 2001,
+        least_visible_water_year: 2025,
+        compared_years: [2001, 2020, 2025],
+        method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES',
+        basis: 'Upstream included one coarse year.',
+      },
+    }
+    const worker = analysis(hydrology)
+    worker.analysis_images = [
+      { date: '2001-07-01', source: 'NASA GIBS', url: 'https://example.org/coarse.jpg', high_resolution_aoi: false },
+      { date: '2020-07-01', source: 'Sentinel-2', url: 'https://example.org/2020.jpg', high_resolution_aoi: true },
+      { date: '2025-07-01', source: 'Sentinel-2', url: 'https://example.org/2025.jpg', high_resolution_aoi: true },
+    ]
+    worker.tp26_protocol = { schema: 'tp26-multisensor-water-extrema-v1', role: 'gate', source_ladder: [], extrema_gate: 'high-resolution years only' }
+    const result = {
+      period: { startYear: 2000, endYear: 2026 },
+      hazards: ['water-loss'],
+      imagery: { visuallyInspectedByModel: 3, analysis: worker },
+    } as unknown as HazardInvestigationResult
+    expect(getVisibleWaterExtrema(result)?.status).toBe('INSUFFICIENT_EVIDENCE')
+    expect(getVisibleWaterExtrema(result)?.basis).toMatch(/Bramka TP26/)
   })
 })

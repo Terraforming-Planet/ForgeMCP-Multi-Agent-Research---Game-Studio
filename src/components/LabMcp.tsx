@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   HAZARD_LABELS,
   HAZARD_TYPES,
+  getVisibleWaterExtrema,
   type HazardInvestigationInput,
   type HazardInvestigationResult,
   type HazardType,
@@ -131,6 +132,10 @@ function sourceState(value: string) {
   return value.replaceAll('_', ' ')
 }
 
+function cloudCoverLabel(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}%` : 'brak metadanych'
+}
+
 function archiveStatusMessage(storage: ResearchArchiveStorage, count: number, automatic: boolean) {
   const action = automatic ? 'Badanie zapisano automatycznie.' : 'Zapis badania potwierdzony.'
   if (storage === 'local') return `${action} Archiwum tej przeglądarki: ${count} ${count === 1 ? 'wpis' : 'wpisów'}.`
@@ -151,6 +156,7 @@ export function LabMcp() {
   const [archiveStatus, setArchiveStatus] = useState('')
   const [archiveCount, setArchiveCount] = useState(() => readResearchArchive().length)
   const [imageDimensions, setImageDimensions] = useState<Record<string, string>>({})
+  const [failedImages, setFailedImages] = useState<Record<string, true>>({})
   const [imageryDisplay, setImageryDisplay] = useState<ImageryDisplaySettings>(() => normalizeImageryDisplay(readLocalJson(IMAGERY_DISPLAY_KEY, DEFAULT_IMAGERY_DISPLAY)))
 
   useEffect(() => {
@@ -230,6 +236,8 @@ export function LabMcp() {
     setArchiveStatus('')
     setShowExtended(false)
     setShowImagery(false)
+    setImageDimensions({})
+    setFailedImages({})
     try {
       const latitude = form.latitude.trim() ? Number(form.latitude) : undefined
       const longitude = form.longitude.trim() ? Number(form.longitude) : undefined
@@ -273,6 +281,15 @@ export function LabMcp() {
     URL.revokeObjectURL(url)
   }
 
+  const recordImageLoad = (key: string, image: HTMLImageElement) => {
+    const dimensions = `${image.naturalWidth}×${image.naturalHeight}`
+    setImageDimensions(current => ({ ...current, [key]: dimensions }))
+  }
+
+  const recordImageFailure = (key: string) => {
+    setFailedImages(current => ({ ...current, [key]: true }))
+  }
+
   const modelPreviewPool = result?.imagery.analysis?.analysis_images ?? result?.imagery.analysis?.preview_images ?? []
   const modelPreviewImages = result ? selectModelPreviewImages(modelPreviewPool, result.imagery.visuallyInspectedByModel) : []
   const displayFilter = imageryDisplayFilter(imageryDisplay)
@@ -286,6 +303,7 @@ export function LabMcp() {
   const availableImageCount = result
     ? modelPreviewImages.length + result.imagery.slots.filter(item => item.status === 'image').length
     : 0
+  const waterExtrema = result ? getVisibleWaterExtrema(result) : null
 
   return <>
     <section className="card lab-hero">
@@ -417,6 +435,17 @@ export function LabMcp() {
         {archiveStatus ? <p className="lab-place-status" role="status" aria-live="polite">{archiveStatus}</p> : null}
       </section>
 
+      {waterExtrema ? <section className="card lab-water-extrema" aria-label="Ranking lat widocznej wody">
+        <div className="lab-section-title"><div><p className="eyebrow">TP26 · PORÓWNANIE WIELOLETNIE</p><h2>Rok maksimum i minimum widocznej wody</h2></div><StatusBadge value={waterExtrema.status === 'ESTABLISHED' ? 'COMPARABLE YEARS' : 'INSUFFICIENT DATA'} /></div>
+        <div className="lab-metrics lab-water-extrema-metrics">
+          <article><b>{waterExtrema.status === 'ESTABLISHED' ? waterExtrema.most_visible_water_year : 'nie ustalono'}</b><span>najwięcej widocznej wody</span></article>
+          <article><b>{waterExtrema.status === 'ESTABLISHED' ? waterExtrema.least_visible_water_year : 'nie ustalono'}</b><span>najmniej widocznej wody</span></article>
+          <article><b>{waterExtrema.compared_years.length}</b><span>lat dopuszczonych do rankingu</span></article>
+        </div>
+        <p>{compactReportText(waterExtrema.basis, 560)}</p>
+        <p className="lab-note">To ranking względnej widocznej powierzchni wody spośród porównywalnych scen, nie pomiar objętości ani dowód przyczyny. Karty katalogowe i słabe obrazy nie są liczone.</p>
+      </section> : null}
+
       <section className="card lab-compact-summary">
         <div className="lab-section-title"><div><p className="eyebrow">SKRÓT BADANIA</p><h2>Najważniejsze wnioski i hipotezy</h2></div><StatusBadge value="FIELD CHECK REQUIRED" /></div>
         <div className="grid two">
@@ -462,6 +491,11 @@ export function LabMcp() {
         </div>
         <p><b>Następny krok wskazany przez analizę:</b> {result.imagery.analysis.analysis.recommended_next_step}</p>
         <ul>{result.imagery.analysis.analysis.limitations.map(item => <li key={item}>{item}</li>)}</ul>
+        {result.imagery.analysis.tp26_protocol ? <details><summary>TP26 — źródła i bramka jakości zdjęć</summary>
+          <p>{result.imagery.analysis.tp26_protocol.extrema_gate}</p>
+          <ul>{result.imagery.analysis.tp26_protocol.source_ladder.map(item => <li key={item.source}><b>{item.source}</b> · {item.nominal_resolution} — {item.role}{item.runtime_state ? <><br /><small>{sourceState(item.runtime_state)}</small></> : null}</li>)}</ul>
+          {result.imagery.analysis.water_extrema_readiness ? <p><b>Ten przebieg:</b> {result.imagery.analysis.water_extrema_readiness.high_resolution_aoi_images} obrazów AOI z {result.imagery.analysis.water_extrema_readiness.high_resolution_aoi_years ?? 'nieustalonej liczby'} porównywalnych lat; łącznie {result.imagery.analysis.water_extrema_readiness.visually_supplied_images} wejść wizualnych.</p> : null}
+        </details> : null}
       </section> : null}
 
       {showImagery ? <>
@@ -476,7 +510,9 @@ export function LabMcp() {
           {modelPreviewImages.map((image, index) => {
             const imageKey = `model-${image.date}-${index}`
             return <figure key={imageKey}>
-              <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Obraz wejściowy modelu ${image.date}`} onLoad={event => setImageDimensions(current => ({ ...current, [imageKey]: `${event.currentTarget.naturalWidth}×${event.currentTarget.naturalHeight}` }))} /></a>
+              {failedImages[imageKey]
+                ? <div className="lab-image-fallback" role="status"><span>Nie udało się pobrać lekkiego podglądu.</span><a href={image.url} target="_blank" rel="noreferrer">Otwórz źródło ↗</a></div>
+                : <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Obraz wejściowy modelu ${image.date}`} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
               <figcaption><b>{image.date}</b><span>{image.source}</span><small>NATURAL-COLOR RGB · lekki podgląd {imageDimensions[imageKey] ?? 'sprawdzany'} · kliknij, aby otworzyć oryginał</small></figcaption>
             </figure>
           })}
@@ -487,10 +523,17 @@ export function LabMcp() {
         <div className="lab-section-title"><div><p className="eyebrow">MATERIAŁ KATALOGOWY</p><h2>Roczna galeria porównawcza</h2></div><StatusBadge value={`${result.imagery.missingYears} MISSING`} /></div>
         <p className="lab-note">Oddzielona od wejść modelu. Landsat może być miniaturą całej obróconej sceny, nawet 300×300 — wtedy służy tylko do wyboru źródła, a nie rozpoznawania małego stawu. Obraz nie jest już przycinany; kliknięcie otwiera oryginał.</p>
         <div className="lab-imagery-grid">
-          {result.imagery.slots.map(slot => slot.status === 'image' && slot.image ? <figure key={slot.year}>
-            <a className="lab-image-link" href={slot.image.original_url} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(slot.image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Obraz satelitarny dla roku ${slot.year}`} onLoad={event => setImageDimensions(current => ({ ...current, [`gallery-${slot.year}`]: `${event.currentTarget.naturalWidth}×${event.currentTarget.naturalHeight}` }))} /></a>
-            <figcaption><b>{slot.year} · {slot.image.date}</b><span>{slot.image.source}</span><small>{slot.image.render_kind ?? 'CATALOGUE BROWSE'} · {slot.image.aoi_cropped === true ? 'wycinek AOI' : 'cała scena / status AOI niepotwierdzony'} · lekki podgląd {imageDimensions[`gallery-${slot.year}`] ?? 'sprawdzany'}</small><small>chmury: {slot.image.cloud_cover === null ? 'brak metadanych' : `${slot.image.cloud_cover.toFixed(1)}%`} · {slot.image.scene_id ?? 'fallback bez ID sceny'}</small></figcaption>
-          </figure> : <article className="lab-missing-year" key={slot.year}><b>{slot.year}</b><span>BRAK OBRAZU</span><small>{slot.reason}</small></article>)}
+          {result.imagery.slots.map(slot => {
+            if (slot.status !== 'image' || !slot.image) return <article className="lab-missing-year" key={slot.year}><b>{slot.year}</b><span>BRAK OBRAZU</span><small>{slot.reason ?? 'Źródło nie zwróciło obrazu dla tego roku.'}</small></article>
+            const imageKey = `gallery-${slot.year}`
+            const sourceUrl = slot.image.original_url || slot.image.url
+            return <figure key={slot.year}>
+              {failedImages[imageKey]
+                ? <div className="lab-image-fallback" role="status"><span>Podgląd niedostępny — pozostała karta źródłowa.</span><a href={sourceUrl} target="_blank" rel="noreferrer">Otwórz źródło ↗</a></div>
+                : <a className="lab-image-link" href={sourceUrl} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(slot.image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Obraz satelitarny dla roku ${slot.year}`} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
+              <figcaption><b>{slot.year} · {slot.image.date}</b><span>{slot.image.source}</span><small>{slot.image.render_kind ?? 'CATALOGUE BROWSE'} · {slot.image.aoi_cropped === true ? 'wycinek AOI' : 'cała scena / status AOI niepotwierdzony'} · lekki podgląd {failedImages[imageKey] ? 'niedostępny' : imageDimensions[imageKey] ?? 'sprawdzany'}</small><small>chmury: {cloudCoverLabel(slot.image.cloud_cover)} · {slot.image.scene_id ?? 'fallback bez ID sceny'}</small></figcaption>
+            </figure>
+          })}
         </div>
       </section>
       </> : <section className="card lab-media-gate">
