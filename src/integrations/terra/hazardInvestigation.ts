@@ -110,7 +110,24 @@ export type Test001FocusEvidenceRecord = {
     delivery: 'NOT_SENT'
     field_verification_required: true
   }
-  comparison_images: Array<{ year: number; role: string; url: string }>
+  comparison_images: Array<{
+    year: number
+    role: string
+    url: string
+    image_authenticity?: 'DERIVED_ANALYTICAL_PRODUCT'
+    product_kind?: string
+    ai_generated?: false
+    used_as_model_input?: false
+  }>
+  source_original_images?: Array<{
+    year: number
+    role: string
+    url: string
+    image_authenticity: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT'
+    product_kind: string
+    ai_generated: false
+    used_as_model_input: false
+  }>
   method: string
 }
 
@@ -126,6 +143,10 @@ export type WorkerAnalysisImage = {
   tile_center_latitude?: number | null
   tile_center_longitude?: number | null
   tile_frame_width_km?: number | null
+  image_authenticity?: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT' | 'DERIVED_ANALYTICAL_PRODUCT' | 'AI_GENERATED_IMAGE'
+  product_kind?: string | null
+  ai_generated?: boolean
+  used_as_model_input?: boolean
 }
 
 export type RegionalPatrolSummary = {
@@ -182,7 +203,17 @@ export type WorkerAreaAnalysis = {
   depth: 'quick' | 'deep'
   preview_images: WorkerAnalysisImage[]
   analysis_images?: WorkerAnalysisImage[]
+  derived_images?: WorkerAnalysisImage[]
   ai_visual_image_count: number
+  model_visual_image_count?: number
+  imagery_authenticity_policy?: {
+    model_input_rule: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY'
+    original_model_input_count: number
+    derived_model_input_count: 0
+    ai_generated_model_input_count: 0
+    derived_display_only_count: number
+    ai_generated_images_present: false
+  }
   visual_preflight_warnings?: string[]
   landsat_catalog: {
     matched: number
@@ -245,6 +276,10 @@ export type YearlyImageSlot = {
     aoi_cropped?: boolean
     analysis_eligible?: boolean
     quality_note?: string
+    image_authenticity?: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT' | 'DERIVED_ANALYTICAL_PRODUCT' | 'AI_GENERATED_IMAGE'
+    product_kind?: string
+    ai_generated?: boolean
+    used_as_model_input?: boolean
   }
   reason?: string
   warning?: string
@@ -403,7 +438,10 @@ export function getVisibleWaterExtrema(result: HazardInvestigationResult): Visib
   }
   const analysisImages = result.imagery.analysis?.analysis_images ?? result.imagery.analysis?.preview_images ?? []
   const rankingEligibleYears = [...new Set(analysisImages
-    .filter(image => image.high_resolution_aoi === true)
+    .filter(image => image.high_resolution_aoi === true
+      && image.image_authenticity !== 'DERIVED_ANALYTICAL_PRODUCT'
+      && image.image_authenticity !== 'AI_GENERATED_IMAGE'
+      && image.ai_generated !== true)
     .map(image => Number(image.date.slice(0, 4)))
     .filter(Number.isInteger))]
   const enforceTp26ImageYears = result.imagery.analysis?.tp26_protocol?.schema.startsWith('tp26-') === true
@@ -661,8 +699,26 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+export function verifiedOriginalModelImageCount(analysis: WorkerAreaAnalysis | null) {
+  if (!analysis) return 0
+  const policy = analysis.imagery_authenticity_policy
+  const images = analysis.analysis_images ?? []
+  const originals = images.filter(image => (
+    image.image_authenticity === 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT'
+    && image.ai_generated === false
+    && image.used_as_model_input === true
+  ))
+  const policyValid = policy?.model_input_rule === 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY'
+    && policy.derived_model_input_count === 0
+    && policy.ai_generated_model_input_count === 0
+    && policy.original_model_input_count === originals.length
+    && policy.original_model_input_count === (analysis.model_visual_image_count ?? analysis.ai_visual_image_count)
+    && images.length === originals.length
+  return policyValid ? originals.length : 0
+}
+
 export function screenSignals(analysis: WorkerAreaAnalysis | null, hazards: HazardType[]) {
-  if (!analysis || analysis.ai_visual_image_count < 1) return []
+  if (!analysis || verifiedOriginalModelImageCount(analysis) < 1) return []
   const hydrology = analysis.analysis.hydrology_screening
   const signals: HazardInvestigationResult['screeningSignals'] = []
   if (hazards.includes('water-loss') && hydrology?.water_change_state === 'VISIBLE_WATER_REDUCTION_CANDIDATE') {
@@ -879,6 +935,7 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
   ])
 
   const analysis = analysisSettled.status === 'fulfilled' ? analysisSettled.value : null
+  const visuallyInspectedByModel = verifiedOriginalModelImageCount(analysis)
   const requestedYears = selectYears(input.startYear, input.endYear, input.timelineMode)
   const gallery = gallerySettled.status === 'fulfilled' ? gallerySettled.value : {
     requestedYears,
@@ -895,9 +952,9 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
     'terra-area-analysis',
     'Wieloletnia analiza obrazów',
     'Terra Worker · NASA GIBS · USGS Landsat · Copernicus Data Space',
-    analysis && analysis.ai_visual_image_count > 0 ? 'PASS' : analysis ? 'INSUFFICIENT_DATA' : 'NOT_CONNECTED',
-    'Model ogląda wybrane obrazy reprezentatywne; katalog nie jest udawany jako analiza wizualna.',
-    analysis ? `${analysis.ai_visual_image_count} obrazów rzeczywiście przekazano do analizy; ${analysis.landsat_catalog.matched} scen pasuje w katalogu Landsat.` : analysisSettled.status === 'rejected' ? String(analysisSettled.reason) : 'Brak odpowiedzi.',
+    analysis && visuallyInspectedByModel > 0 ? 'PASS' : analysis ? 'INSUFFICIENT_DATA' : 'NOT_CONNECTED',
+    'Model może analizować tylko jawnie oznaczone oryginalne oficjalne produkty satelitarne; katalog i produkty pochodne pozostają oddzielone.',
+    analysis ? `${visuallyInspectedByModel} oryginalnych produktów satelitarnych przeszło bramkę wejścia modelu; ${analysis.landsat_catalog.matched} scen pasuje w katalogu Landsat.` : analysisSettled.status === 'rejected' ? String(analysisSettled.reason) : 'Brak odpowiedzi.',
     `${TERRA_EVIDENCE_API_URL}/research/analyze`,
   ))
   if (input.spatialMode === 'regional-patrol') {
@@ -971,17 +1028,17 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
     'https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/experiment-001/',
   ))
 
-  if (analysis) provenance.push(sourceProvenance('Representative official/public EO imagery and Landsat catalogue', areaLabel, 'analyze_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/analyze`, { period: analysis.period, depth: analysis.depth, aiVisualImageCount: analysis.ai_visual_image_count, landsatMatched: analysis.landsat_catalog.matched, visualFocus: analysis.visual_focus ?? null, regionalPatrol: analysis.regional_patrol ?? null }, 'Model oglądał wyłącznie liczbę obrazów podaną w aiVisualImageCount; pozostałe wpisy katalogu to metadane. Zbliżenie poprawia rejestrację celu, nie natywną rozdzielczość sensora. Patrol regionalny jest rzadkim przesiewem, nie pełnym pokryciem.'))
+  if (analysis) provenance.push(sourceProvenance('Representative official/public EO imagery and Landsat catalogue', areaLabel, 'analyze_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/analyze`, { period: analysis.period, depth: analysis.depth, originalModelImageCount: visuallyInspectedByModel, imageryAuthenticityPolicy: analysis.imagery_authenticity_policy ?? null, landsatMatched: analysis.landsat_catalog.matched, visualFocus: analysis.visual_focus ?? null, regionalPatrol: analysis.regional_patrol ?? null }, 'Model oglądał wyłącznie obrazy, które przeszły jawną bramkę ORIGINAL_OFFICIAL_SATELLITE_PRODUCT; produkty pochodne i obrazy AI nie są wejściami modelu. Zbliżenie poprawia rejestrację celu, nie natywną rozdzielczość sensora. Patrol regionalny jest rzadkim przesiewem, nie pełnym pokryciem.'))
   provenance.push(sourceProvenance('Year-by-year NASA HLS/WELD AOI, USGS browse and NASA GIBS fallback gallery', areaLabel, 'retrieve_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/yearly-gallery`, { years: gallery.requestedYears, season: input.season, returnedImages: gallery.slots.filter(item => item.status === 'image').length }, 'Galeria służy do kontroli i wyboru scen. Nie każdy obraz został obejrzany przez model.'))
   provenance.push(...elevation.provenance, ...events.provenance)
   if (analogues) provenance.push(...analogues.provenance)
   if (test001Context) provenance.push(...test001Context.evidence.provenance, ...test001Context.reference.provenance)
 
   const observations: InvestigationObservation[] = []
-  if (analysis && analysis.ai_visual_image_count > 0) {
+  if (analysis && visuallyInspectedByModel > 0) {
     observations.push(
       { evidenceClass: 'OBSERVATION', statement: analysis.analysis.what_is_visible, source: 'Terra Worker — obrazy faktycznie przeanalizowane przez model', limitation: 'Opis wizualny nie jest pomiarem terenowym ani dowodem przyczyny.' },
-      { evidenceClass: 'OBSERVATION', statement: analysis.analysis.change_over_time, source: 'Terra Worker — porównanie reprezentatywnych dat', limitation: `Model obejrzał ${analysis.ai_visual_image_count} obrazów, a nie każdy rok z galerii.` },
+      { evidenceClass: 'OBSERVATION', statement: analysis.analysis.change_over_time, source: 'Terra Worker — porównanie reprezentatywnych dat', limitation: `Model obejrzał ${visuallyInspectedByModel} jawnie oznaczonych oryginalnych produktów satelitarnych, a nie każdy rok z galerii.` },
       { evidenceClass: 'OBSERVATION', statement: analysis.analysis.water_assessment, source: 'Terra Worker — ocena widocznej wody', limitation: 'Widoczność wody zależy od rozdzielczości, chmur, roślinności i sezonu.' },
       ...analysis.analysis.notable_features.map(statement => ({ evidenceClass: 'OBSERVATION' as const, statement, source: 'Terra Worker — cecha w obrazie', limitation: 'Cecha jest kandydatem obserwacyjnym, nie mechanizmem przyczynowym.' })),
     )
@@ -1007,7 +1064,6 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
   const signals = screenSignals(analysis, input.hazardTypes)
   const recordedAnomaly = Boolean(test001Context?.evidence.recordedResult.stateChangeSupported)
   const hypotheses = rankCausalHypotheses(input.hazardTypes, signals, recordedAnomaly)
-  const visuallyInspectedByModel = analysis?.ai_visual_image_count ?? 0
   const hydrology = analysis?.analysis.hydrology_screening
   const waterEvidenceInconclusive = needsWaterAnalogues && (
     !hydrology
@@ -1105,10 +1161,10 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
       missingYears: gallery.slots.filter(item => item.status === 'missing').length,
       analysis,
       warning: isTest001
-        ? 'TEST 001 używa skorygowanego środka stawu i stałej pary dowodowej ~469 m; live AOI ma szerokość 500 m. Tylko ai_visual_image_count oznacza obrazy obejrzane przez model. Zbliżenie nie zwiększa natywnej rozdzielczości sensora.'
+        ? 'TEST 001 używa skorygowanego środka stawu i zarejestrowanego pomiaru w stałym kadrze ~469 m. Model przyjmuje wyłącznie jawnie oznaczone oryginalne produkty satelitarne; nakładki pomiarowe są oddzielnymi produktami pochodnymi. Zbliżenie nie zwiększa natywnej rozdzielczości sensora.'
         : analysis?.regional_patrol
-          ? `Tylko ai_visual_image_count oznacza obrazy obejrzane przez model. Patrol obejrzał ${analysis.regional_patrol.inspected_tiles}/${analysis.regional_patrol.requested_tiles} zbliżeń; jego nominalne pokrycie to najwyżej ${analysis.regional_patrol.nominal_coverage_upper_bound_percent.toFixed(2)}%, więc nie sprawdzono całego AOI. Zbliżenie nie zwiększa natywnej rozdzielczości sensora.`
-          : 'Tylko ai_visual_image_count oznacza obrazy obejrzane przez model. Galeria roczna jest materiałem źródłowym do kontroli człowieka, nie automatycznie przeanalizowanym szeregiem.',
+          ? `Tylko obrazy, które przeszły bramkę oryginału, są liczone jako obejrzane przez model. Patrol obejrzał ${analysis.regional_patrol.inspected_tiles}/${analysis.regional_patrol.requested_tiles} zbliżeń; jego nominalne pokrycie to najwyżej ${analysis.regional_patrol.nominal_coverage_upper_bound_percent.toFixed(2)}%, więc nie sprawdzono całego AOI. Zbliżenie nie zwiększa natywnej rozdzielczości sensora.`
+          : 'Tylko obrazy, które przeszły bramkę oryginału, są liczone jako obejrzane przez model. Galeria roczna jest materiałem źródłowym do kontroli człowieka, nie automatycznie przeanalizowanym szeregiem.',
     },
     observations,
     screeningSignals: signals,

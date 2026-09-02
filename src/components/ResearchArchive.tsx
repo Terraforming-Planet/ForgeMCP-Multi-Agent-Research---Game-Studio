@@ -101,6 +101,9 @@ export function ResearchArchive() {
           {entry.hypotheses.map(item => <section key={`${entry.id}-${item.id}`}><h3>{HAZARD_LABELS[item.hazardType as HazardType] ?? item.hazardType}</h3><p><StatusBadge value={item.status} /> {item.hypothesis}</p><ul>{item.requiredChecks.map(check => <li key={check}>{check}</li>)}</ul></section>)}
         </details>
         <small>{entry.imagery.inspectedByModel} obrazów obejrzanych przez model · {entry.imagery.galleryImages}/{entry.imagery.requestedYears} kart galerii · ustawienia obrazu zapisane jako DISPLAY_ONLY.</small>
+        <p className="lab-note"><b>Pochodzenie wejść modelu:</b> {entry.imagery.modelInputRule === 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY'
+          ? `${entry.imagery.originalModelInputs ?? 0} oryginalnych oficjalnych produktów satelitarnych · ${entry.imagery.derivedModelInputs ?? 0} produktów pochodnych · ${entry.imagery.aiGeneratedModelInputs ?? 0} obrazów AI.`
+          : 'starszy wpis bez jawnej bramki pochodzenia — wymaga ponownego przebiegu.'}</p>
       </article>)}
     </section>
   </>

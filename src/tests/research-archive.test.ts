@@ -4,6 +4,7 @@ import { DEFAULT_IMAGERY_DISPLAY } from '../integrations/terra/imageryDisplay'
 import {
   RESEARCH_ARCHIVE_BACKUP_KEY,
   RESEARCH_ARCHIVE_KEY,
+  countMatchingResearchRuns,
   createResearchArchiveEntry,
   readResearchArchive,
   saveResearchArchiveEntry,
@@ -23,6 +24,14 @@ function result(runId: string): HazardInvestigationResult {
       requestedYears: [2000, 2026],
       missingYears: 1,
       analysis: {
+        imagery_authenticity_policy: {
+          model_input_rule: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY',
+          original_model_input_count: 4,
+          derived_model_input_count: 0,
+          ai_generated_model_input_count: 0,
+          derived_display_only_count: 1,
+          ai_generated_images_present: false,
+        },
         analysis: {
           headline: 'Visible change candidate',
           change_over_time: 'Water-like pixels appear reduced.',
@@ -75,8 +84,36 @@ describe('research archive', () => {
     expect(archive[0].hydrology?.causeStatus).toBe('NOT_ESTABLISHED_FROM_SUPPLIED_EVIDENCE')
     expect(archive[0].waterExtrema?.mostVisibleWaterYear).toBe(2000)
     expect(archive[0].waterExtrema?.leastVisibleWaterYear).toBe(2026)
+    expect(archive[0].imagery.modelInputRule).toBe('ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY')
+    expect(archive[0].imagery.originalModelInputs).toBe(4)
+    expect(archive[0].imagery.derivedModelInputs).toBe(0)
+    expect(archive[0].imagery.aiGeneratedModelInputs).toBe(0)
     expect(archive[0].shortSummary.some(item => item.includes('najwięcej: 2000'))).toBe(true)
     expect(JSON.stringify(archive[0])).not.toContain('image.jpg')
+  })
+
+  it('counts only unique runs from the same saved research configuration', () => {
+    const first = createResearchArchiveEntry(result('series-1'), DEFAULT_IMAGERY_DISPLAY)
+    const second = createResearchArchiveEntry(result('series-2'), DEFAULT_IMAGERY_DISPLAY)
+    const differentArea = createResearchArchiveEntry({
+      ...result('series-other'),
+      area: {
+        requestedName: 'Other lake', resolvedName: 'Other lake', latitude: 51, longitude: 20, radiusKm: 4,
+        resolutionMethod: 'SUPPLIED_COORDINATES', alternativeMatches: 0,
+      },
+    }, DEFAULT_IMAGERY_DISPLAY)
+
+    expect(countMatchingResearchRuns([first, second, { ...first }, differentArea], {
+      latitude: 50,
+      longitude: 20,
+      radiusKm: 4,
+      startYear: 2000,
+      endYear: 2026,
+      season: 'summer',
+      timelineMode: 'representative',
+      hazards: ['water-loss'],
+      spatialMode: 'overview',
+    })).toBe(2)
   })
 
   it('writes a verified backup and recovers when the primary record is damaged', () => {

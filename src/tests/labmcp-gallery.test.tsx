@@ -37,6 +37,7 @@ function investigationResult(): HazardInvestigationResult {
             year: 2020, date: '2020-09-01', source: 'Test source',
             url: 'https://example.org/preview-2020.jpg', original_url: 'https://example.org/original-2020.jpg',
             scene_id: 'scene-2020', cloud_cover: undefined as unknown as null, cloud_preference_met: true,
+            image_authenticity: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT', product_kind: 'FULL_RESOLUTION_BROWSE', ai_generated: false, used_as_model_input: false,
           },
         },
         {
@@ -46,6 +47,7 @@ function investigationResult(): HazardInvestigationResult {
             year: 2026, date: '2026-09-01', source: 'Test source',
             url: 'https://example.org/preview-2026.jpg', original_url: 'https://example.org/original-2026.jpg',
             scene_id: 'scene-2026', cloud_cover: 5, cloud_preference_met: true,
+            image_authenticity: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT', product_kind: 'FULL_RESOLUTION_BROWSE', ai_generated: false, used_as_model_input: false,
           },
         },
       ],
@@ -57,6 +59,14 @@ function investigationResult(): HazardInvestigationResult {
         area: { place_name: 'TEST 001', latitude: 53.5914, longitude: 19.010717, radius_km: 2 },
         period: { start_date: '2020-09-01', end_date: '2026-09-01' }, depth: 'deep',
         preview_images: [], analysis_images: [], ai_visual_image_count: 2,
+        imagery_authenticity_policy: {
+          model_input_rule: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY',
+          original_model_input_count: 2,
+          derived_model_input_count: 0,
+          ai_generated_model_input_count: 0,
+          derived_display_only_count: 0,
+          ai_generated_images_present: false,
+        },
         landsat_catalog: { matched: 2, returned: 2, scenes: [], query_url: null, full_catalog_url: null },
         analysis: {
           headline: 'Porównanie wymaga kontroli.', what_is_visible: 'Widoczna woda.',
@@ -107,7 +117,7 @@ describe('LabTerra image gallery resilience', () => {
 
   it('reads dimensions synchronously and keeps the result visible after image load', async () => {
     render(<MemoryRouter><LabMcp /></MemoryRouter>)
-    fireEvent.click(screen.getByRole('button', { name: 'Uruchom agentów i analizę wieloletnią' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Uruchom przebieg 1/10' }))
     await screen.findByRole('heading', { name: 'TEST 001' })
     fireEvent.click(screen.getByRole('button', { name: 'Załaduj lekkie podglądy zdjęć' }))
 
@@ -122,7 +132,7 @@ describe('LabTerra image gallery resilience', () => {
 
   it('contains one failed image instead of crashing the whole page', async () => {
     render(<MemoryRouter><LabMcp /></MemoryRouter>)
-    fireEvent.click(screen.getByRole('button', { name: 'Uruchom agentów i analizę wieloletnią' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Uruchom przebieg 1/10' }))
     await screen.findByRole('heading', { name: 'TEST 001' })
     fireEvent.click(screen.getByRole('button', { name: 'Załaduj lekkie podglądy zdjęć' }))
     fireEvent.error(screen.getByAltText('Obraz satelitarny dla roku 2026'))
@@ -156,8 +166,12 @@ describe('LabTerra image gallery resilience', () => {
           recentState: 'No comparable persistent dark-water footprint is visible.',
           lossPercentStatus: 'Near-total; exact percentage uncertainty-gated.',
           comparisonImages: [
-            { year: 2000, role: 'HISTORICAL_FIXED_CROP', url: 'https://example.org/test001-2000.png' },
-            { year: 2026, role: 'RECENT_FIXED_CROP', url: 'https://example.org/test001-2026.png' },
+            { year: 2000, role: 'ORIGINAL_HISTORICAL_SATELLITE_SOURCE', url: 'https://example.org/test001-2000.png', imageAuthenticity: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT', productKind: 'PINNED_NATIVE_AOI_EXPORT', aiGenerated: false, usedAsModelInput: false },
+            { year: 2026, role: 'ORIGINAL_RECENT_SATELLITE_SOURCE', url: 'https://example.org/test001-2026.png', imageAuthenticity: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT', productKind: 'PINNED_NATIVE_AOI_EXPORT', aiGenerated: false, usedAsModelInput: false },
+          ],
+          derivedComparisonImages: [
+            { year: 2000, role: 'HISTORICAL_FIXED_CROP_WITH_CONSENSUS_OVERLAY', url: 'https://example.org/test001-overlay-2000.png', imageAuthenticity: 'DERIVED_ANALYTICAL_PRODUCT', productKind: 'RESEARCH_CONSENSUS_OVERLAY', aiGenerated: false, usedAsModelInput: false },
+            { year: 2026, role: 'RECENT_FIXED_CROP_WITH_HISTORICAL_CONSENSUS_OVERLAY', url: 'https://example.org/test001-overlay-2026.png', imageAuthenticity: 'DERIVED_ANALYTICAL_PRODUCT', productKind: 'RESEARCH_CONSENSUS_OVERLAY', aiGenerated: false, usedAsModelInput: false },
           ],
           stateChangeSupported: true,
           openWaterArea2026M2: null,
@@ -174,9 +188,9 @@ describe('LabTerra image gallery resilience', () => {
     vi.mocked(getTool).mockReturnValue({ execute } as never)
 
     render(<MemoryRouter><LabMcp /></MemoryRouter>)
-    fireEvent.click(screen.getByRole('button', { name: 'Uruchom agentów i analizę wieloletnią' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Uruchom przebieg 1/10' }))
 
-    await screen.findByRole('heading', { name: 'Silnie potwierdzony zanik historycznego lustra wody' })
+    await screen.findByRole('heading', { name: 'Silnie wspierany zanik historycznego lustra wody' })
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({
       caseId: 'test-001-forest-pond-kuchnia',
       focusLatitude: 53.594595,
@@ -185,8 +199,50 @@ describe('LabTerra image gallery resilience', () => {
     }))
     expect(screen.getByText(/niemal całkowity zanik historycznego trwałego lustra tego stawu/i)).toBeInTheDocument()
     expect(screen.getByText(/≈ 1.77 ha/)).toBeInTheDocument()
-    expect(screen.getByAltText('Staw TEST 001 w stałym kadrze historycznym z 2000 roku')).toBeInTheDocument()
-    expect(screen.getByAltText('Basen stawu TEST 001 w tym samym stałym kadrze w 2026 roku')).toBeInTheDocument()
+    expect(screen.getByAltText('Oryginalny obraz satelitarny Landsat-5 obszaru stawu TEST 001 z 2000 roku')).toBeInTheDocument()
+    expect(screen.getByAltText('Oryginalny obraz satelitarny Sentinel-2B obszaru stawu TEST 001 z 2026 roku')).toBeInTheDocument()
+    expect(screen.getAllByText('ORYGINALNY OFICJALNY PRODUKT SATELITARNY · NIE AI')).toHaveLength(2)
+    fireEvent.click(screen.getByText('Pokaż pochodne nakładki pomiarowe — nie są oryginalnymi zdjęciami'))
+    expect(screen.getAllByText('PRODUKT POCHODNY · NIE JEST ORYGINALNYM ZDJĘCIEM')).toHaveLength(2)
+  })
+
+  it('keeps a derived product outside the original-only model gallery', async () => {
+    const provenanceResult = investigationResult()
+    if (!provenanceResult.imagery.analysis) throw new Error('Missing analysis fixture.')
+    const original = {
+      date: '2020-09-01', source: 'NASA HLS S30', url: 'https://example.org/original-input.jpg',
+      high_resolution_aoi: true, evidence_role: 'OPTICAL_RGB', nominal_resolution_m: 30, cloud_cover: 2,
+      image_authenticity: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT' as const,
+      product_kind: 'SINGLE_ACQUISITION_SURFACE_REFLECTANCE', ai_generated: false, used_as_model_input: true,
+    }
+    const derived = {
+      date: '2020-09-01', source: 'NASA OPERA DSWx-HLS', url: 'https://example.org/derived-water.png',
+      high_resolution_aoi: true, evidence_role: 'WATER_CLASSIFICATION', nominal_resolution_m: 30, cloud_cover: 2,
+      image_authenticity: 'DERIVED_ANALYTICAL_PRODUCT' as const,
+      product_kind: 'PROVIDER_DERIVED_WATER_CLASSIFICATION', ai_generated: false, used_as_model_input: false,
+    }
+    provenanceResult.imagery.visuallyInspectedByModel = 1
+    provenanceResult.imagery.analysis.ai_visual_image_count = 1
+    provenanceResult.imagery.analysis.analysis_images = [original, derived]
+    provenanceResult.imagery.analysis.derived_images = [derived]
+    provenanceResult.imagery.analysis.imagery_authenticity_policy = {
+      model_input_rule: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY',
+      original_model_input_count: 1,
+      derived_model_input_count: 0,
+      ai_generated_model_input_count: 0,
+      derived_display_only_count: 1,
+      ai_generated_images_present: false,
+    }
+    vi.mocked(getTool).mockReturnValue({ execute: vi.fn().mockResolvedValue({ state: 'WARNING', verification: 'WARNING', data: provenanceResult }) } as never)
+
+    render(<MemoryRouter><LabMcp /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Uruchom przebieg 1/10' }))
+    await screen.findByText(/Odrzucono 1 obraz z sekcji wejść modelu/)
+    fireEvent.click(screen.getByRole('button', { name: /Pokaż zdjęcia/ }))
+
+    expect(screen.getByAltText('Obraz wejściowy modelu 2020-09-01')).toBeInTheDocument()
+    expect(screen.getByAltText(/Produkt pochodny NASA OPERA DSWx-HLS/)).toBeInTheDocument()
+    expect(screen.getByText('PRODUKT POCHODNY · NIE JEST ORYGINALNYM ZDJĘCIEM')).toBeInTheDocument()
   })
 
   it('offers a separate twenty-frame regional patrol and shows its truthful coverage limit', async () => {
@@ -237,7 +293,7 @@ describe('LabTerra image gallery resilience', () => {
 
     render(<MemoryRouter><LabMcp /></MemoryRouter>)
     fireEvent.click(screen.getByRole('radio', { name: /Patrol regionalny · 20 zbliżeń/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Uruchom agentów i analizę wieloletnią' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Uruchom przebieg 1/10' }))
 
     await screen.findByRole('heading', { name: 'Co naprawdę obejrzał agent' })
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({

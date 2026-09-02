@@ -75,7 +75,16 @@ export type ResearchArchiveEntry = {
     causeStatus: 'NOT_ESTABLISHED'
     alertStatus: 'HIGH_PRIORITY_MONITORING_ANOMALY_REQUIRES_INVESTIGATION'
   }
-  imagery: { inspectedByModel: number; galleryImages: number; requestedYears: number; missingYears: number }
+  imagery: {
+    inspectedByModel: number
+    galleryImages: number
+    requestedYears: number
+    missingYears: number
+    modelInputRule?: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY' | 'LEGACY_UNDECLARED'
+    originalModelInputs?: number
+    derivedModelInputs?: number
+    aiGeneratedModelInputs?: number
+  }
   sources: Array<{ name: string; provider: string; state: string; sourceUrl: string }>
   limitations: string[]
   displaySettings: ImageryDisplaySettings & { evidenceMeaning: 'DISPLAY_ONLY_NOT_MODEL_INPUT' }
@@ -95,6 +104,7 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
   const test001 = result.test001Context?.evidence.recordedResult
   const patrol = result.imagery.analysis?.regional_patrol
   const patrolAssessment = visual?.regional_patrol_assessment
+  const authenticity = result.imagery.analysis?.imagery_authenticity_policy
   const waterExtremaSummary = test001 ? undefined : waterExtrema?.status === 'ESTABLISHED'
     ? `Widoczna woda — najwięcej: ${waterExtrema.most_visible_water_year}; najmniej: ${waterExtrema.least_visible_water_year}; porównane lata: ${waterExtrema.compared_years.join(', ')}.`
     : waterExtrema
@@ -205,6 +215,10 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
       galleryImages: result.imagery.slots.filter(item => item.status === 'image').length,
       requestedYears: result.imagery.requestedYears.length,
       missingYears: result.imagery.missingYears,
+      modelInputRule: authenticity?.model_input_rule ?? 'LEGACY_UNDECLARED',
+      originalModelInputs: authenticity?.original_model_input_count ?? 0,
+      derivedModelInputs: authenticity?.derived_model_input_count ?? 0,
+      aiGeneratedModelInputs: authenticity?.ai_generated_model_input_count ?? 0,
     },
     sources: result.sourceStatus.slice(0, 16).map(item => ({ name: item.name, provider: item.provider, state: item.state, sourceUrl: item.sourceUrl })),
     limitations: result.limitations.slice(0, 8).map(item => compact(item)),
@@ -212,6 +226,36 @@ export function createResearchArchiveEntry(result: HazardInvestigationResult, di
     learningStatus: 'CURATION_REQUIRED_NOT_AUTOMATIC_TRAINING',
     humanDecisionRequired: true,
   }
+}
+
+export type ResearchSeriesCriteria = {
+  latitude: number
+  longitude: number
+  radiusKm: number
+  startYear: number
+  endYear: number
+  season: string
+  timelineMode: string
+  hazards: string[]
+  spatialMode: 'overview' | 'regional-patrol'
+}
+
+export function countMatchingResearchRuns(entries: ResearchArchiveEntry[], criteria: ResearchSeriesCriteria) {
+  if (![criteria.latitude, criteria.longitude, criteria.radiusKm, criteria.startYear, criteria.endYear].every(Number.isFinite)) return 0
+  const expectedHazards = [...new Set(criteria.hazards)].sort().join('|')
+  const runIds = new Set(entries.filter(entry => {
+    const entrySpatialMode = entry.regionalPatrol ? 'regional-patrol' : 'overview'
+    return Math.abs(entry.area.latitude - criteria.latitude) <= 0.00001
+      && Math.abs(entry.area.longitude - criteria.longitude) <= 0.00001
+      && Math.abs(entry.area.radiusKm - criteria.radiusKm) <= 0.001
+      && entry.period.startYear === criteria.startYear
+      && entry.period.endYear === criteria.endYear
+      && entry.period.season === criteria.season
+      && entry.period.timelineMode === criteria.timelineMode
+      && entrySpatialMode === criteria.spatialMode
+      && [...new Set(entry.hazards)].sort().join('|') === expectedHazards
+  }).map(entry => entry.runId))
+  return runIds.size
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -344,6 +388,17 @@ function isArchiveEntry(value: unknown): value is ResearchArchiveEntry {
       ))
     ))
   )
+  const imageryAuthenticityValid = imagery.modelInputRule === undefined || (
+    (imagery.modelInputRule === 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY' || imagery.modelInputRule === 'LEGACY_UNDECLARED')
+    && isFiniteNumber(imagery.originalModelInputs)
+    && isFiniteNumber(imagery.derivedModelInputs)
+    && isFiniteNumber(imagery.aiGeneratedModelInputs)
+    && (imagery.modelInputRule !== 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY' || (
+      imagery.originalModelInputs === imagery.inspectedByModel
+      && imagery.derivedModelInputs === 0
+      && imagery.aiGeneratedModelInputs === 0
+    ))
+  )
 
   return value.schemaVersion === '1.0'
     && typeof value.id === 'string'
@@ -374,6 +429,7 @@ function isArchiveEntry(value: unknown): value is ResearchArchiveEntry {
     && isFiniteNumber(imagery.galleryImages)
     && isFiniteNumber(imagery.requestedYears)
     && isFiniteNumber(imagery.missingYears)
+    && imageryAuthenticityValid
     && sourcesValid
     && isStringArray(value.limitations)
     && typeof display.preset === 'string'

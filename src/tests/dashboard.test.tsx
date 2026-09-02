@@ -21,7 +21,7 @@ describe('dashboard render', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('heading', { name: 'Laboratorium dochodzeń środowiskowych' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Uruchom agentów i analizę wieloletnią' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Uruchom przebieg 1/10' })).toBeTruthy()
     expect(screen.getByRole('combobox', { name: 'Preset badawczy' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Szukaj miejsca' })).toBeTruthy()
     expect(screen.getByLabelText('Szerokość geograficzna')).toBeTruthy()

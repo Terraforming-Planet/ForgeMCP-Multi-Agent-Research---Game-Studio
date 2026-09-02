@@ -58,6 +58,10 @@ export type PreviewImage = {
   tile_center_latitude?: number | null
   tile_center_longitude?: number | null
   tile_frame_width_km?: number | null
+  image_authenticity?: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCT' | 'DERIVED_ANALYTICAL_PRODUCT' | 'AI_GENERATED_IMAGE'
+  product_kind?: string | null
+  ai_generated?: boolean
+  used_as_model_input?: boolean
 }
 
 export function selectModelPreviewImages(images: PreviewImage[], inspectedCount: number) {
