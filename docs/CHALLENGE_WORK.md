@@ -14,6 +14,11 @@
 - Five concrete LabMCP WebMCP handlers and a dedicated `/#/labmcp` workbench.
 - Pinned authoritative Cube engine adapter, executed legal self-play/tournaments, replay records, metrics, promotion gates and rollback.
 - Reversible visual-readability before/after proposal, deterministic QA and approval boundary.
+- Cosmic responsive home hub with direct Terra search, Game Studio and 3D/commerce-test entry points.
+- Four source-linked Terra station presets reused as reversible Game Studio material and lighting systems.
+- Real local procedural glTF 2.0 + deterministic PNG texture exporter with a linked QA manifest.
+- Two guarded Shopify/B2B test tracks, local product/RFQ drafts and explicit no-payment/no-send boundaries.
+- ForgeMCP assistant → Codex brief workflow using the human's Earth Guardian prompt without claiming external execution.
 - New verification, provenance, and human approval components.
 - New research station local model/UI and JSON export.
 - New CI workflow and test suite.
