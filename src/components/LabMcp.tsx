@@ -51,6 +51,7 @@ type FormState = {
   hazards: HazardType[]
   depth: HazardInvestigationInput['depth']
   timelineMode: HazardInvestigationInput['timelineMode']
+  spatialMode: 'overview' | 'regional-patrol'
 }
 
 const CURRENT_YEAR = new Date().getUTCFullYear()
@@ -67,6 +68,7 @@ const PRESETS: Record<Exclude<FormState['preset'], 'custom'>, Omit<FormState, 'p
     hazards: ['water-loss', 'flow-obstruction', 'terrain-change'],
     depth: 'deep',
     timelineMode: 'annual',
+    spatialMode: 'overview',
   },
   vistula: {
     regionQuery: 'Wisła — Gniew–Grudziądz, Polska — TEST 014',
@@ -79,6 +81,7 @@ const PRESETS: Record<Exclude<FormState['preset'], 'custom'>, Omit<FormState, 'p
     hazards: ['flow-obstruction', 'terrain-change', 'flood'],
     depth: 'deep',
     timelineMode: 'representative',
+    spatialMode: 'overview',
   },
   himalaya: {
     regionQuery: 'Himalaje / Wyżyna Tybetańska — TEST 015',
@@ -91,6 +94,7 @@ const PRESETS: Record<Exclude<FormState['preset'], 'custom'>, Omit<FormState, 'p
     hazards: ['snow-avalanche', 'landslide', 'terrain-change'],
     depth: 'deep',
     timelineMode: 'representative',
+    spatialMode: 'overview',
   },
   'lake-chad': {
     regionQuery: 'Lake Chad',
@@ -103,6 +107,7 @@ const PRESETS: Record<Exclude<FormState['preset'], 'custom'>, Omit<FormState, 'p
     hazards: ['water-loss', 'flow-obstruction', 'terrain-change'],
     depth: 'deep',
     timelineMode: 'representative',
+    spatialMode: 'overview',
   },
 }
 
@@ -129,7 +134,17 @@ function readLocationMatches(value: unknown): LocationMatch[] {
 }
 
 function sourceState(value: string) {
-  return value.replaceAll('_', ' ')
+  const labels: Record<string, string> = {
+    INCONCLUSIVE_EVIDENCE: 'NIEJEDNOZNACZNE DANE',
+    NO_ANOMALY_ESTABLISHED: 'NIE POTWIERDZONO ANOMALII',
+    IMAGERY_NOT_VISUALLY_INSPECTED: 'BRAK ANALIZY WIZUALNEJ',
+    COMPLETE_SPARSE_SCREENING: '20 PRÓBEK SPRAWDZONYCH',
+    PARTIAL_SPARSE_SCREENING: 'CZĘŚCIOWY PRZEGLĄD PRÓBEK',
+    COMPLETE_TILE_REVIEW: 'PEŁNY OPIS KADRÓW',
+    PARTIAL_TILE_REVIEW: 'CZĘŚCIOWY OPIS KADRÓW',
+    INSUFFICIENT_EVIDENCE: 'NIEWYSTARCZAJĄCE DANE',
+  }
+  return labels[value] ?? value.replaceAll('_', ' ')
 }
 
 function cloudCoverLabel(value: unknown) {
@@ -153,6 +168,7 @@ export function LabMcp() {
   const [searchingPlace, setSearchingPlace] = useState(false)
   const [showExtended, setShowExtended] = useState(false)
   const [showImagery, setShowImagery] = useState(false)
+  const [showPatrolImagery, setShowPatrolImagery] = useState(false)
   const [archiveStatus, setArchiveStatus] = useState('')
   const [archiveCount, setArchiveCount] = useState(() => readResearchArchive().length)
   const [imageDimensions, setImageDimensions] = useState<Record<string, string>>({})
@@ -167,7 +183,7 @@ export function LabMcp() {
     setPlaceMatches([])
     setPlaceStatus('')
     if (preset === 'custom') {
-      setForm(current => ({ ...current, preset, regionQuery: '', latitude: '', longitude: '', radiusKm: '25', hazards: ['water-loss'], timelineMode: 'representative' }))
+      setForm(current => ({ ...current, preset, regionQuery: '', latitude: '', longitude: '', radiusKm: '25', hazards: ['water-loss'], timelineMode: 'representative', spatialMode: 'overview' }))
       return
     }
     setForm({ preset, ...PRESETS[preset] })
@@ -236,6 +252,7 @@ export function LabMcp() {
     setArchiveStatus('')
     setShowExtended(false)
     setShowImagery(false)
+    setShowPatrolImagery(false)
     setImageDimensions({})
     setFailedImages({})
     try {
@@ -252,6 +269,8 @@ export function LabMcp() {
         hazardTypes: form.hazards,
         depth: form.depth,
         timelineMode: form.timelineMode,
+        spatialMode: form.spatialMode,
+        ...(form.spatialMode === 'regional-patrol' ? { patrolTileCount: 20, patrolFrameWidthKm: 1 } : {}),
         referenceQuery: form.preset === 'test001' ? 'Toruń' : undefined,
         ...(form.preset === 'test001' ? {
           caseId: 'test-001-forest-pond-kuchnia' as const,
@@ -298,6 +317,8 @@ export function LabMcp() {
 
   const modelPreviewPool = result?.imagery.analysis?.analysis_images ?? result?.imagery.analysis?.preview_images ?? []
   const modelPreviewImages = result ? selectModelPreviewImages(modelPreviewPool, result.imagery.visuallyInspectedByModel) : []
+  const overviewPreviewImages = modelPreviewImages.filter(image => image.evidence_role !== 'REGIONAL_PATROL_TILE')
+  const patrolPreviewImages = modelPreviewImages.filter(image => image.evidence_role === 'REGIONAL_PATROL_TILE')
   const displayFilter = imageryDisplayFilter(imageryDisplay)
   const displayFilterStyle = imageryDisplay.preset === 'natural'
     && imageryDisplay.brightness === 100
@@ -312,6 +333,11 @@ export function LabMcp() {
   const waterExtrema = result ? getVisibleWaterExtrema(result) : null
   const test001Record = result?.test001Context?.evidence.recordedResult ?? null
   const test001ComparisonImages = test001Record?.comparisonImages ?? []
+  const regionalPatrol = result?.imagery.analysis?.regional_patrol ?? null
+  const regionalPatrolAssessment = result?.imagery.analysis?.analysis.regional_patrol_assessment ?? null
+  const configuredRadiusKm = Number(form.radiusKm)
+  const configuredAoiAreaKm2 = Number.isFinite(configuredRadiusKm) && configuredRadiusKm > 0 ? Math.PI * configuredRadiusKm * configuredRadiusKm : 0
+  const configuredPatrolCoveragePercent = configuredAoiAreaKm2 > 0 ? Math.min(100, (20 / configuredAoiAreaKm2) * 100) : 0
 
   return <>
     <section className="card lab-hero">
@@ -322,7 +348,7 @@ export function LabMcp() {
       </div>
       <div className="lab-status-stack">
         <StatusBadge value={result?.classification ?? 'NOT RUN'} />
-        <StatusBadge value={result?.signalState ?? 'AWAITING AREA'} />
+        <StatusBadge value={result ? sourceState(result.signalState) : 'AWAITING AREA'} />
         <StatusBadge value={result ? `QA ${result.qaStatus}` : 'FIELD VERIFICATION REQUIRED'} />
       </div>
     </section>
@@ -403,13 +429,19 @@ export function LabMcp() {
           <label><input type="radio" name="timeline" checked={form.timelineMode === 'representative'} onChange={() => setForm(current => ({ ...current, timelineMode: 'representative' }))} /> Reprezentatywne lata (maks. 12)</label>
           <label><input type="radio" name="timeline" checked={form.timelineMode === 'annual'} onChange={() => setForm(current => ({ ...current, timelineMode: 'annual' }))} /> Każdy rok w zadanym okresie</label>
         </fieldset>
+        <fieldset>
+          <legend>Sposób oglądania obszaru</legend>
+          <label><input type="radio" name="spatial" checked={form.spatialMode === 'overview'} onChange={() => setForm(current => ({ ...current, spatialMode: 'overview' }))} /> Widok ogólny · kilka dat całego AOI</label>
+          <label><input type="radio" name="spatial" checked={form.spatialMode === 'regional-patrol'} onChange={() => setForm(current => ({ ...current, spatialMode: 'regional-patrol', depth: 'deep' }))} /> Patrol regionalny · 20 zbliżeń 1×1 km + widok ogólny</label>
+          {form.spatialMode === 'regional-patrol' ? <small><b>Uczciwe pokrycie:</b> dla promienia {Number.isFinite(configuredRadiusKm) ? configuredRadiusKm : '—'} km te 20 kadrów obejmie najwyżej około {configuredPatrolCoveragePercent.toFixed(2)}% powierzchni. To przesiew próbek, nie pełna mapa.</small> : null}
+        </fieldset>
       </div>
 
       <div className="toolbar lab-run-toolbar">
         <button type="button" className="lab-primary" onClick={run} disabled={running}>{running ? 'Agenci pobierają i weryfikują prawdziwe źródła…' : 'Uruchom agentów i analizę wieloletnią'}</button>
         <button type="button" onClick={exportJson} disabled={!result}>Eksportuj pełny JSON</button>
       </div>
-      {running ? <p className="lab-progress" role="status">Trwa połączenie z Terra Worker, NASA/USGS/Copernicus, DEM i bazami analogii. Nie wyświetlamy symulowanych wyników — raport pojawi się dopiero po odpowiedzi źródeł.</p> : null}
+      {running ? <p className="lab-progress" role="status">Trwa połączenie z Terra Worker, NASA/USGS/Copernicus, DEM i bazami analogii.{form.spatialMode === 'regional-patrol' ? ' Worker dodatkowo pobiera i sprawdza 20 zbliżeń 1 km w czterech bezpiecznych strumieniach.' : ''} Nie wyświetlamy symulowanych wyników — raport pojawi się dopiero po odpowiedzi źródeł.</p> : null}
       {error ? <p className="lab-error" role="alert"><b>NIE UDAŁO SIĘ ZAKOŃCZYĆ PRZEBIEGU:</b> {error}</p> : null}
     </section>
 
@@ -443,6 +475,38 @@ export function LabMcp() {
         </div>
         {archiveStatus ? <p className="lab-place-status" role="status" aria-live="polite">{archiveStatus}</p> : null}
       </section>
+
+      {regionalPatrol ? <section className="card lab-regional-patrol" aria-label="Patrol regionalny zbliżeń satelitarnych">
+        <div className="lab-section-title"><div><p className="eyebrow">PATROL REGIONALNY · ZBLIŻENIA 1 KM</p><h2>Co naprawdę obejrzał agent</h2></div><StatusBadge value={sourceState(regionalPatrol.status)} /></div>
+        <div className="lab-metrics">
+          <article><b>{regionalPatrol.inspected_tiles}/{regionalPatrol.requested_tiles}</b><span>zbliżeń obejrzanych przez model</span></article>
+          <article><b>{regionalPatrol.frame_width_km.toFixed(1)} × {regionalPatrol.frame_width_km.toFixed(1)} km</b><span>wielkość jednego kadru</span></article>
+          <article><b>≤ {regionalPatrol.nominal_coverage_upper_bound_percent.toFixed(2)}%</b><span>górna granica pokrycia AOI</span></article>
+          <article><b>{regionalPatrol.nominal_resolution_m ? `~${regionalPatrol.nominal_resolution_m} m` : 'nie ustalono'}</b><span>natywna rozdzielczość źródła</span></article>
+        </div>
+        <p><b>Źródło:</b> {regionalPatrol.source ?? 'brak porównywalnego HLS'} · data {regionalPatrol.source_date ?? 'nieustalona'}.</p>
+        <p className="lab-note"><b>Wniosek uczciwy:</b> to {regionalPatrol.inspected_tiles} przestrzennych próbek z jednej daty. Co najmniej {regionalPatrol.uninspected_area_lower_bound_percent.toFixed(2)}% AOI pozostaje poza tymi kadrami, więc brak kandydata w patrolu nie oznacza braku zagrożenia w całym regionie. Zbliżenie nie tworzy nowych szczegółów ponad rozdzielczość sensora.</p>
+        {regionalPatrolAssessment && regionalPatrolAssessment.status !== 'NOT_REQUESTED' ? <div className="lab-patrol-assessment">
+          <h3>Wynik przeglądu kadr po kolei</h3>
+          <p>{regionalPatrolAssessment.overview}</p>
+          <div className="lab-metrics">
+            <article><b>{regionalPatrolAssessment.tile_findings.length}</b><span>kadrów ze strukturalnym opisem</span></article>
+            <article><b>{regionalPatrolAssessment.tiles_with_visible_open_water.length}</b><span>kadry z widoczną otwartą wodą</span></article>
+            <article><b>{regionalPatrolAssessment.tiles_with_possible_channel.length}</b><span>kadry z możliwym ciekiem</span></article>
+            <article><b>{regionalPatrolAssessment.tiles_with_cloud_shadow_or_no_data.length}</b><span>kadry zasłonięte lub bez danych</span></article>
+          </div>
+          <details><summary>Szczegółowe opisy kadrów P01–P20</summary>
+            <div className="table-wrap"><table><thead><tr><th>Kadr</th><th>Powierzchnia</th><th>Hydrologia</th><th>Obserwacja</th><th>Pewność</th></tr></thead><tbody>
+              {regionalPatrolAssessment.tile_findings.map(finding => <tr key={finding.tile_id}><td><b>{finding.tile_id}</b></td><td>{sourceState(finding.surface_class)}</td><td>{sourceState(finding.hydrology_feature)}</td><td>{finding.observation}</td><td>{finding.confidence}</td></tr>)}
+            </tbody></table></div>
+          </details>
+        </div> : null}
+        <details><summary>Manifest 20 kadrów i współrzędne kontroli</summary>
+          <div className="table-wrap"><table><thead><tr><th>Kadr</th><th>Środek WGS84</th><th>Status</th></tr></thead><tbody>
+            {regionalPatrol.tile_manifest.map(tile => <tr key={tile.tile_id}><td><b>{tile.tile_id}</b></td><td>{tile.latitude.toFixed(6)}, {tile.longitude.toFixed(6)}</td><td><StatusBadge value={sourceState(tile.status)} /></td></tr>)}
+          </tbody></table></div>
+        </details>
+      </section> : null}
 
       {test001Record ? <section className="card lab-test001-focus" aria-label="Dowód 500 m dla TEST 001">
         <div className="lab-section-title"><div><p className="eyebrow">TEST 001 · TEN SAM STAW · KADR 500 M</p><h2>Silnie potwierdzony zanik historycznego lustra wody</h2></div><div className="lab-status-stack"><StatusBadge value="HIGH PRIORITY ANOMALY" /><StatusBadge value="CAUSE UNKNOWN" /></div></div>
@@ -499,6 +563,18 @@ export function LabMcp() {
         {result.imagery.analysis ? <p><b>Następny krok:</b> {compactReportText(result.imagery.analysis.analysis.recommended_next_step)}</p> : null}
       </section>
 
+      <section className="card lab-honest-audit">
+        <div className="lab-section-title"><div><p className="eyebrow">UCZCIWY AUDYT RAPORTU</p><h2>Czego ten przebieg nadal nie zrobił</h2></div><StatusBadge value="OPEN GAPS" /></div>
+        <ul>
+          <li>Nie policzył powierzchni wody w km²/ha dla każdej porównywalnej daty; obecny ranking jest jakościowy.</li>
+          <li>Nie pobrał jeszcze Sentinel‑1 SAR, więc chmury, cień i mokra roślinność nadal mogą mylić obraz optyczny.</li>
+          <li>Nie nałożył urzędowej sieci hydrograficznej, dlatego widoczne dopływy, odpływy i zatory pozostają kandydatami, a nie potwierdzoną siecią przepływu.</li>
+          <li>Nie połączył szeregu opadu, parowania, poziomu wód gruntowych, wodowskazów i poboru wody — bez tego nie da się uczciwie ustalić przyczyny.</li>
+          {regionalPatrol ? <li>Patrol zbliżeń nie jest pełnym pokryciem i używa jednej daty; kolejny etap powinien porównać te same podejrzane kadry w co najmniej dwóch zgodnych sezonowo latach.</li> : <li>Nie wykonano przestrzennego patrolu zbliżeń; dalekie kadry mogą przeoczyć małe cieki, rowy i zbiorniki.</li>}
+          <li>Nie przeprowadzono kontroli terenowej ani pomiaru przepływu powyżej i poniżej podejrzanych miejsc.</li>
+        </ul>
+      </section>
+
       {showExtended ? <>
       <section className="card">
         <h2>Agenci i faktycznie wykonane narzędzia</h2>
@@ -538,11 +614,11 @@ export function LabMcp() {
         <ImageryControls value={imageryDisplay} onChange={setImageryDisplay} />
       </section>
 
-      {modelPreviewImages.length ? <section className="card lab-model-inputs lab-media-section">
-        <div className="lab-section-title"><div><p className="eyebrow">ORYGINALNE WEJŚCIA ANALIZY</p><h2>Obrazy obejrzane przez model</h2></div><StatusBadge value={`${modelPreviewImages.length} INSPECTED`} /></div>
+      {overviewPreviewImages.length ? <section className="card lab-model-inputs lab-media-section">
+        <div className="lab-section-title"><div><p className="eyebrow">ORYGINALNE WEJŚCIA ANALIZY</p><h2>Wieloletnie obrazy ogólne obejrzane przez model</h2></div><StatusBadge value={`${overviewPreviewImages.length} INSPECTED`} /></div>
         <p className="lab-note">Model otrzymał oryginalne obrazy źródłowe. Suwaki powyżej zmieniają tylko Twój podgląd i nie zmieniają już wykonanej analizy.</p>
         <div className="lab-imagery-grid lab-model-imagery">
-          {modelPreviewImages.map((image, index) => {
+          {overviewPreviewImages.map((image, index) => {
             const imageKey = `model-${image.date}-${index}`
             return <figure key={imageKey}>
               {failedImages[imageKey]
@@ -552,6 +628,25 @@ export function LabMcp() {
             </figure>
           })}
         </div>
+      </section> : null}
+
+      {patrolPreviewImages.length ? showPatrolImagery ? <section className="card lab-model-inputs lab-media-section">
+        <div className="lab-section-title"><div><p className="eyebrow">PATROL REGIONALNY · ORYGINALNE WEJŚCIA</p><h2>Zbliżenia faktycznie obejrzane przez model</h2></div><StatusBadge value={`${patrolPreviewImages.length} INSPECTED`} /></div>
+        <p className="lab-note">Każdy kadr ma 1 km szerokości, ale natywna rozdzielczość HLS pozostaje około 30 m. Obrazy są ładowane osobno, aby telefon nie wygasił strony.</p>
+        <div className="lab-imagery-grid lab-model-imagery">
+          {patrolPreviewImages.map((image, index) => {
+            const imageKey = `patrol-${image.patrol_tile_id ?? index}-${image.date}`
+            return <figure key={imageKey}>
+              {failedImages[imageKey]
+                ? <div className="lab-image-fallback" role="status"><span>Nie udało się pobrać lekkiego podglądu.</span><a href={image.url} target="_blank" rel="noreferrer">Otwórz źródło ↗</a></div>
+                : <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={mobilePreviewUrl(image.url)} style={displayFilterStyle} loading="lazy" decoding="async" alt={`Kadr patrolu ${image.patrol_tile_id ?? index + 1} z ${image.date}`} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
+              <figcaption><b>{image.patrol_tile_id ?? `Kadr ${index + 1}`} · {image.date}</b><span>{image.source}</span><small>środek: {typeof image.tile_center_latitude === 'number' ? image.tile_center_latitude.toFixed(6) : '—'}, {typeof image.tile_center_longitude === 'number' ? image.tile_center_longitude.toFixed(6) : '—'} · kadr {image.tile_frame_width_km ?? 1} km · źródło {image.nominal_resolution_m ?? '—'} m</small></figcaption>
+            </figure>
+          })}
+        </div>
+      </section> : <section className="card lab-media-gate">
+        <div><p className="eyebrow">20 ZBLIŻEŃ PATROLU</p><h2>Podglądy nadal wstrzymane dla telefonu</h2><p>Agent już je przeanalizował. Załaduj je tylko wtedy, gdy chcesz ręcznie sprawdzić wszystkie kadry.</p></div>
+        <button type="button" className="lab-primary" onClick={() => setShowPatrolImagery(true)}>Załaduj {patrolPreviewImages.length} zbliżeń</button>
       </section> : null}
 
       <section className="card lab-media-section">

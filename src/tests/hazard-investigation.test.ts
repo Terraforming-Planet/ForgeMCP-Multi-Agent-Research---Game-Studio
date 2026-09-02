@@ -38,6 +38,23 @@ function workerAnalysis() {
       what_is_visible: 'A valley, vegetation and a channel are visible.',
       change_over_time: 'A new excavation and erosion pattern is visible in the later supplied image.',
       water_assessment: 'No material water conclusion is possible.',
+      hydrology_screening: {
+        water_change_state: 'NO_VISIBLE_CHANGE_ESTABLISHED',
+        temporal_basis: 'The supplied scenes are not sufficiently comparable to establish change.',
+        inflow_outflow_status: 'INSUFFICIENT_EVIDENCE',
+        candidate_features: [],
+        main_and_tributary_context: 'The network cannot be resolved from the supplied overview images.',
+        required_checks: ['Use official hydrography and matched-season imagery.'],
+        cause_status: 'NOT_ESTABLISHED_FROM_SUPPLIED_EVIDENCE',
+        visible_water_extrema: {
+          status: 'INSUFFICIENT_EVIDENCE',
+          most_visible_water_year: null,
+          least_visible_water_year: null,
+          compared_years: [],
+          method: 'QUALITATIVE_VISUAL_RANKING_OF_SUPPLIED_IMAGES',
+          basis: 'No comparable pair passed the evidence gate.',
+        },
+      },
       notable_features: ['New earthworks candidate near the channel.'],
       confidence: { level: 'medium', reason: 'Four representative images were supplied.' },
       limitations: ['Representative dates only.'],
@@ -47,12 +64,13 @@ function workerAnalysis() {
   }
 }
 
-function installFetch(analysisAvailable: boolean) {
+function installFetch(analysisAvailable: boolean, inspectAnalysisRequest?: (body: Record<string, unknown>) => void) {
   vi.stubGlobal('fetch', vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
     const url = String(request)
     if (url === `${TERRA_EVIDENCE_API_URL}/research/analyze`) {
       const body = JSON.parse(String(init?.body)) as { season?: string }
       expect(body.season).toBe('spring')
+      inspectAnalysisRequest?.(body)
       return analysisAvailable ? response(workerAnalysis()) : response({ error: 'Area analysis unavailable' }, false, 503)
     }
     if (url === `${TERRA_EVIDENCE_API_URL}/research/yearly-gallery`) {
@@ -113,6 +131,27 @@ describe('generic Terra hazard investigation truth gates', () => {
     expect(result.alertDraft.status).toBe('NOT_RECOMMENDED_YET')
     expect(result.alertDraft.delivery).toBe('NOT_SENT')
     expect(result.sourceStatus.find(item => item.id === 'terra-area-analysis')?.state).toBe('NOT_CONNECTED')
+  })
+
+  it('forwards the 20-tile regional patrol and does not turn incomparable water evidence into no anomaly', async () => {
+    let analysisRequest: Record<string, unknown> = {}
+    installFetch(true, body => { analysisRequest = body })
+    const result = await runHazardInvestigation({
+      ...input,
+      hazardTypes: ['water-loss'],
+      spatialMode: 'regional-patrol',
+      patrolTileCount: 20,
+      patrolFrameWidthKm: 1,
+    })
+
+    expect(analysisRequest.spatial_mode).toBe('regional-patrol')
+    expect(analysisRequest.patrol_tile_count).toBe(20)
+    expect(analysisRequest.patrol_frame_width_km).toBe(1)
+    expect(result.signalState).toBe('INCONCLUSIVE_EVIDENCE')
+    expect(result.classification).toBe('INSUFFICIENT_DATA')
+    expect(result.verification.state).toBe('INSUFFICIENT_DATA')
+    expect(result.verification.reason).toContain('nie wolno zamieniać tego wyniku w „brak anomalii”')
+    expect(result.toolsExecuted).toContain('inspect_regional_patrol_tiles')
   })
 
   it('allows only a complete, independently measured and human-approved field record to become a verified finding', () => {

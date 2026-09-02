@@ -28,6 +28,7 @@ export type HazardType = (typeof HAZARD_TYPES)[number]
 export type InvestigationSeason = 'all' | 'spring' | 'summer' | 'autumn' | 'winter'
 export type InvestigationDepth = 'screening' | 'deep'
 export type TimelineMode = 'representative' | 'annual'
+export type SpatialAnalysisMode = 'overview' | 'regional-patrol'
 
 export type HazardInvestigationInput = {
   regionQuery: string
@@ -40,6 +41,9 @@ export type HazardInvestigationInput = {
   hazardTypes: HazardType[]
   depth: InvestigationDepth
   timelineMode: TimelineMode
+  spatialMode?: SpatialAnalysisMode
+  patrolTileCount?: number
+  patrolFrameWidthKm?: number
   referenceQuery?: string
   caseId?: 'test-001-forest-pond-kuchnia'
   focusLatitude?: number
@@ -110,6 +114,65 @@ export type Test001FocusEvidenceRecord = {
   method: string
 }
 
+export type WorkerAnalysisImage = {
+  date: string
+  source: string
+  url: string
+  high_resolution_aoi?: boolean
+  evidence_role?: string | null
+  nominal_resolution_m?: number | null
+  cloud_cover?: number | null
+  patrol_tile_id?: string | null
+  tile_center_latitude?: number | null
+  tile_center_longitude?: number | null
+  tile_frame_width_km?: number | null
+}
+
+export type RegionalPatrolSummary = {
+  status: 'COMPLETE_SPARSE_SCREENING' | 'PARTIAL_SPARSE_SCREENING' | 'UNAVAILABLE_HIGH_RESOLUTION_SOURCE' | 'NO_TILE_PASSED_PREFLIGHT'
+  requested_tiles: number
+  generated_tiles: number
+  inspected_tiles: number
+  frame_width_km: number
+  source_date: string | null
+  source: string | null
+  nominal_resolution_m: number | null
+  aoi_radius_km: number
+  aoi_area_km2: number
+  nominal_sampled_area_upper_bound_km2: number
+  nominal_coverage_upper_bound_percent: number
+  uninspected_area_lower_bound_percent: number
+  full_coverage: false
+  selection_method: 'DETERMINISTIC_GOLDEN_ANGLE_SPATIAL_STRATIFICATION_NOT_HYDROGRAPHY_TARGETED'
+  temporal_scope: 'ONE_RECENT_HLS_DATE_SPATIAL_SCREENING'
+  temporal_change_supported_by_patrol_alone: false
+  tile_manifest: Array<{
+    tile_id: string
+    latitude: number
+    longitude: number
+    status: 'INSPECTED_BY_MODEL' | 'NOT_INSPECTED_PRECHECK_OR_BUDGET'
+  }>
+  limitations: string[]
+}
+
+export type RegionalPatrolAssessment = {
+  status: 'NOT_REQUESTED' | 'COMPLETE_TILE_REVIEW' | 'PARTIAL_TILE_REVIEW' | 'INSUFFICIENT_EVIDENCE'
+  overview: string
+  inspected_tile_ids: string[]
+  tiles_with_visible_open_water: string[]
+  tiles_with_wetland_or_wet_soil: string[]
+  tiles_with_possible_channel: string[]
+  tiles_with_cloud_shadow_or_no_data: string[]
+  tile_findings: Array<{
+    tile_id: string
+    surface_class: 'OPEN_WATER' | 'WETLAND_OR_WET_SOIL' | 'VEGETATION' | 'BARE_SOIL_OR_SEDIMENT' | 'BUILT_OR_MODIFIED_TERRAIN' | 'CLOUD_SHADOW_OR_NO_DATA' | 'MIXED_OR_UNCERTAIN'
+    hydrology_feature: 'NONE_VISIBLE' | 'MAIN_WATERBODY' | 'POSSIBLE_INFLOW' | 'POSSIBLE_OUTFLOW' | 'SIDE_CHANNEL_OR_DITCH' | 'POSSIBLE_OBSTRUCTION_OR_CROSSING' | 'UNRESOLVED'
+    observation: string
+    confidence: 'low' | 'medium' | 'high'
+  }>
+  limitations: string[]
+}
+
 export type WorkerAreaAnalysis = {
   service: string
   generated_at_utc: string
@@ -117,8 +180,8 @@ export type WorkerAreaAnalysis = {
   visual_focus?: { latitude: number; longitude: number; radius_km: number; frame_width_m: number; purpose: string; native_resolution_unchanged: true }
   period: { start_date: string; end_date: string }
   depth: 'quick' | 'deep'
-  preview_images: Array<{ date: string; source: string; url: string; high_resolution_aoi?: boolean; evidence_role?: string | null; nominal_resolution_m?: number | null; cloud_cover?: number | null }>
-  analysis_images?: Array<{ date: string; source: string; url: string; high_resolution_aoi?: boolean; evidence_role?: string | null; nominal_resolution_m?: number | null; cloud_cover?: number | null }>
+  preview_images: WorkerAnalysisImage[]
+  analysis_images?: WorkerAnalysisImage[]
   ai_visual_image_count: number
   visual_preflight_warnings?: string[]
   landsat_catalog: {
@@ -135,6 +198,7 @@ export type WorkerAreaAnalysis = {
     change_over_time: string
     water_assessment: string
     hydrology_screening?: HydrologyScreening
+    regional_patrol_assessment?: RegionalPatrolAssessment
     notable_features: string[]
     confidence: { level: 'low' | 'medium' | 'high'; reason: string }
     limitations: string[]
@@ -160,6 +224,7 @@ export type WorkerAreaAnalysis = {
     high_resolution_aoi_years?: number
     visually_supplied_images: number
   }
+  regional_patrol?: RegionalPatrolSummary | null
   evidence_policy: string
 }
 
@@ -256,7 +321,7 @@ export type HazardInvestigationResult = {
   requestedAt: string
   completedAt: string
   classification: EvidenceState
-  signalState: 'RECORDED_ANOMALY' | 'SCREENING_CANDIDATE' | 'NO_ANOMALY_ESTABLISHED' | 'IMAGERY_NOT_VISUALLY_INSPECTED'
+  signalState: 'RECORDED_ANOMALY' | 'SCREENING_CANDIDATE' | 'INCONCLUSIVE_EVIDENCE' | 'NO_ANOMALY_ESTABLISHED' | 'IMAGERY_NOT_VISUALLY_INSPECTED'
   qaStatus: 'WARNING' | 'INSUFFICIENT_DATA'
   humanDecision: 'REQUIRED_BEFORE_PUBLICATION_OR_INTERVENTION'
   area: {
@@ -531,6 +596,11 @@ export async function analyzeMultiyearImagery(input: HazardInvestigationInput, l
       place_name: input.regionQuery,
       depth: input.depth === 'deep' ? 'deep' : 'quick',
       season: input.season,
+      spatial_mode: input.spatialMode ?? 'overview',
+      ...(input.spatialMode === 'regional-patrol' ? {
+        patrol_tile_count: input.patrolTileCount ?? 20,
+        patrol_frame_width_km: input.patrolFrameWidthKm ?? 1,
+      } : {}),
     }),
   })
   return readJson<WorkerAreaAnalysis>(response)
@@ -830,6 +900,20 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
     analysis ? `${analysis.ai_visual_image_count} obrazów rzeczywiście przekazano do analizy; ${analysis.landsat_catalog.matched} scen pasuje w katalogu Landsat.` : analysisSettled.status === 'rejected' ? String(analysisSettled.reason) : 'Brak odpowiedzi.',
     `${TERRA_EVIDENCE_API_URL}/research/analyze`,
   ))
+  if (input.spatialMode === 'regional-patrol') {
+    const patrol = analysis?.regional_patrol
+    sourceStatus.push(source(
+      'regional-patrol',
+      'Patrol regionalny zbliżeń 1 km',
+      'Terra Worker · NASA HLS S30 / ESA Sentinel-2 MSI',
+      !patrol ? 'NOT_CONNECTED' : patrol.status === 'COMPLETE_SPARSE_SCREENING' ? 'PASS' : patrol.inspected_tiles ? 'WARNING' : 'INSUFFICIENT_DATA',
+      'Przestrzenny przesiew próbek wewnątrz AOI; nie jest pełnym pokryciem ani szeregiem zmian w czasie.',
+      patrol
+        ? `${patrol.inspected_tiles}/${patrol.requested_tiles} kadrów obejrzanych; górna granica nominalnego pokrycia ${patrol.nominal_coverage_upper_bound_percent.toFixed(2)}%; data źródła ${patrol.source_date ?? 'nieustalona'}; natywna rozdzielczość ${patrol.nominal_resolution_m ?? 'nieustalona'} m.`
+        : 'Worker nie zwrócił protokołu patrolu regionalnego.',
+      `${TERRA_EVIDENCE_API_URL}/research/analyze`,
+    ))
+  }
   sourceStatus.push(source(
     'l4-water-protocol',
     'Protokół wodny L4 — treningi #3 i #4',
@@ -887,7 +971,7 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
     'https://terraforming-planet.github.io/Polar-Sun-Moon-Analysis/experiment-001/',
   ))
 
-  if (analysis) provenance.push(sourceProvenance('Representative official/public EO imagery and Landsat catalogue', areaLabel, 'analyze_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/analyze`, { period: analysis.period, depth: analysis.depth, aiVisualImageCount: analysis.ai_visual_image_count, landsatMatched: analysis.landsat_catalog.matched, visualFocus: analysis.visual_focus ?? null }, 'Model oglądał wyłącznie liczbę obrazów podaną w aiVisualImageCount; pozostałe wpisy katalogu to metadane. Kadr zbliżenia poprawia rejestrację celu, nie natywną rozdzielczość sensora.'))
+  if (analysis) provenance.push(sourceProvenance('Representative official/public EO imagery and Landsat catalogue', areaLabel, 'analyze_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/analyze`, { period: analysis.period, depth: analysis.depth, aiVisualImageCount: analysis.ai_visual_image_count, landsatMatched: analysis.landsat_catalog.matched, visualFocus: analysis.visual_focus ?? null, regionalPatrol: analysis.regional_patrol ?? null }, 'Model oglądał wyłącznie liczbę obrazów podaną w aiVisualImageCount; pozostałe wpisy katalogu to metadane. Zbliżenie poprawia rejestrację celu, nie natywną rozdzielczość sensora. Patrol regionalny jest rzadkim przesiewem, nie pełnym pokryciem.'))
   provenance.push(sourceProvenance('Year-by-year NASA HLS/WELD AOI, USGS browse and NASA GIBS fallback gallery', areaLabel, 'retrieve_multiyear_imagery', `${TERRA_EVIDENCE_API_URL}/research/yearly-gallery`, { years: gallery.requestedYears, season: input.season, returnedImages: gallery.slots.filter(item => item.status === 'image').length }, 'Galeria służy do kontroli i wyboru scen. Nie każdy obraz został obejrzany przez model.'))
   provenance.push(...elevation.provenance, ...events.provenance)
   if (analogues) provenance.push(...analogues.provenance)
@@ -910,6 +994,12 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
     }
   }
   observations.push({ evidenceClass: 'CATALOGUE_METADATA', statement: `${gallery.slots.filter(item => item.status === 'image').length} z ${gallery.requestedYears.length} żądanych lat ma oficjalny obraz AOI, podgląd lub jawny fallback.`, source: 'NASA HLS/WELD/GIBS · USGS Landsat', limitation: 'Metadane i podgląd nie oznaczają automatycznego pomiaru zmiany.' })
+  if (analysis?.regional_patrol) observations.push({
+    evidenceClass: 'OBSERVATION',
+    statement: `Patrol regionalny: model obejrzał ${analysis.regional_patrol.inspected_tiles} z ${analysis.regional_patrol.requested_tiles} kadrów po ${analysis.regional_patrol.frame_width_km.toFixed(1)} km; górna granica nominalnego pokrycia AOI wynosi ${analysis.regional_patrol.nominal_coverage_upper_bound_percent.toFixed(2)}%.`,
+    source: 'Terra Worker — manifest patrolu HLS S30',
+    limitation: 'To rzadkie próbki z jednej daty, nie pełne pokrycie ani samodzielny dowód zmiany w czasie; obszary między kadrami pozostają niesprawdzone.',
+  })
   if (elevation.state === 'OBSERVATION') observations.push({ evidenceClass: 'OBSERVATION', statement: `Pobrano ${elevation.samples.length} próbek Copernicus DEM w profilu przez AOI.`, source: 'Open-Meteo / Copernicus DEM GLO-90', limitation: 'Próbki rastrowe nie są niwelacją terenową ani automatycznym kierunkiem przepływu.' })
   for (const item of events.observations) observations.push({ evidenceClass: 'CONTEXT_ONLY', statement: `${item.title} (${item.date})`, source: `NASA EONET · ${item.source}`, limitation: 'Bieżący kontekst z szerokiego filtra; nie ustanawia związku z badaną zmianą.' })
   if (test001Context) observations.push({ evidenceClass: 'ANOMALY', statement: `TEST 001: porównanie tego samego stałego kadru silnie wspiera niemal całkowity zanik historycznego trwałego lustra wody. Centralny historyczny obrys wynosi około ${test001Context.evidence.recordedResult.historicalPersistentFootprintHa.toFixed(2)} ha (zakres powtarzalnych obrazów ${(test001Context.evidence.recordedResult.repeatSupportedRangeM2[0] / 10_000).toFixed(2)}–${(test001Context.evidence.recordedResult.repeatSupportedRangeM2[1] / 10_000).toFixed(2)} ha).`, source: 'Terra TEST 001 recorded fixed-crop measurement', limitation: 'To szacunek zaniku historycznego obrysu, nie dokładny pomiar resztkowej wody w 2026 ani dowód przyczyny.' })
@@ -918,23 +1008,28 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
   const recordedAnomaly = Boolean(test001Context?.evidence.recordedResult.stateChangeSupported)
   const hypotheses = rankCausalHypotheses(input.hazardTypes, signals, recordedAnomaly)
   const visuallyInspectedByModel = analysis?.ai_visual_image_count ?? 0
+  const hydrology = analysis?.analysis.hydrology_screening
+  const waterEvidenceInconclusive = needsWaterAnalogues && (
+    !hydrology
+    || hydrology.water_change_state === 'INSUFFICIENT_EVIDENCE'
+    || hydrology.visible_water_extrema?.status === 'INSUFFICIENT_EVIDENCE'
+  )
   const signalState: HazardInvestigationResult['signalState'] = recordedAnomaly
     ? 'RECORDED_ANOMALY'
     : signals.length
       ? 'SCREENING_CANDIDATE'
       : visuallyInspectedByModel
-        ? 'NO_ANOMALY_ESTABLISHED'
+        ? waterEvidenceInconclusive ? 'INCONCLUSIVE_EVIDENCE' : 'NO_ANOMALY_ESTABLISHED'
         : 'IMAGERY_NOT_VISUALLY_INSPECTED'
-  const classification: EvidenceState = signalState === 'IMAGERY_NOT_VISUALLY_INSPECTED'
+  const classification: EvidenceState = signalState === 'IMAGERY_NOT_VISUALLY_INSPECTED' || signalState === 'INCONCLUSIVE_EVIDENCE'
     ? 'INSUFFICIENT_DATA'
     : signalState === 'NO_ANOMALY_ESTABLISHED'
       ? 'OBSERVATION'
       : 'HYPOTHESIS'
   const alertDraft = draftPreliminaryAlert({ region: resolvedName, hazards: input.hazardTypes, hasRecordedAnomaly: recordedAnomaly, signals, visualImageCount: visuallyInspectedByModel })
-  const hydrology = analysis?.analysis.hydrology_screening
   const requiredFieldChecks = fieldChecks(input.hazardTypes, hydrology, Boolean(test001Context))
   const verification: VerificationResult = {
-    state: visuallyInspectedByModel || recordedAnomaly ? 'WARNING' : 'INSUFFICIENT_DATA',
+    state: classification === 'INSUFFICIENT_DATA' ? 'INSUFFICIENT_DATA' : 'WARNING',
     checks: [
       `${visuallyInspectedByModel} obrazów przekazano do faktycznej analizy wizualnej`,
       `${gallery.requestedYears.length} lat żądano w galerii; ${gallery.slots.filter(item => item.status === 'image').length} ma obraz`,
@@ -953,9 +1048,14 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
       'Przyczyna oraz poziom zagrożenia wymagają pomiarów terenowych i decyzji właściwych ekspertów.',
     ],
     timestamp: new Date().toISOString(),
-    reason: classification === 'INSUFFICIENT_DATA' ? 'Nie wykonano wiarygodnej analizy wizualnej; wynik nie może ustanowić zagrożenia.' : 'Zebrano materiał obserwacyjny do hipotez, lecz bez niezależnej weryfikacji terenowej nie wolno ustanowić przyczyny ani VERIFIED_FINDING.',
+    reason: signalState === 'INCONCLUSIVE_EVIDENCE'
+      ? 'Obrazy obejrzano, lecz nie było dość porównywalnych danych do rozstrzygnięcia zmiany; nie wolno zamieniać tego wyniku w „brak anomalii”.'
+      : classification === 'INSUFFICIENT_DATA'
+        ? 'Nie wykonano wiarygodnej analizy wizualnej; wynik nie może ustanowić zagrożenia.'
+        : 'Zebrano materiał obserwacyjny do hipotez, lecz bez niezależnej weryfikacji terenowej nie wolno ustanowić przyczyny ani VERIFIED_FINDING.',
   }
   if (needsWaterAnalogues) toolsExecuted.push('screen_main_tributary_inflow_outflow_network')
+  if (input.spatialMode === 'regional-patrol') toolsExecuted.push('inspect_regional_patrol_tiles')
   toolsExecuted.push('rank_causal_hypotheses', 'draft_preliminary_risk_alert', 'propose_recovery_options', 'verify_evidence')
 
   const agents: InvestigationAgent[] = [
@@ -970,6 +1070,16 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
     { name: 'Alert & Public Safety Planner', role: 'Tworzy wyłącznie szkic komunikatu dla człowieka i właściwych służb.', tool: 'draft_preliminary_risk_alert', status: alertDraft.status === 'DRAFT_REQUIRES_HUMAN_APPROVAL' ? 'WARNING' : 'INSUFFICIENT_DATA', result: `${alertDraft.status}; ${alertDraft.delivery}.` },
     { name: 'Restoration Engineering Planner', role: 'Podaje warianty warunkowe z bramką projektu, pozwoleń i odpowiedzialnego organu.', tool: 'propose_recovery_options', status: 'WARNING', result: `${proposeRecoveryOptions(input.hazardTypes).length} opcji warunkowych.` },
   ]
+  if (input.spatialMode === 'regional-patrol') {
+    const patrol = analysis?.regional_patrol
+    agents.splice(2, 0, {
+      name: 'Regional Tile Patrol Agent',
+      role: 'Ogląda osobne zbliżenia 1 km rozłożone w AOI i raportuje kandydatów z identyfikatorem kadru.',
+      tool: 'inspect_regional_patrol_tiles',
+      status: !patrol ? 'NOT_CONNECTED' : patrol.inspected_tiles === patrol.requested_tiles ? 'PASS' : patrol.inspected_tiles ? 'WARNING' : 'INSUFFICIENT_DATA',
+      result: patrol ? `${patrol.inspected_tiles}/${patrol.requested_tiles} kadrów; maksymalnie ${patrol.nominal_coverage_upper_bound_percent.toFixed(2)}% nominalnego AOI.` : 'Brak manifestu patrolu.',
+    })
+  }
 
   return {
     schemaVersion: '2.0',
@@ -996,7 +1106,9 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
       analysis,
       warning: isTest001
         ? 'TEST 001 używa skorygowanego środka stawu i stałej pary dowodowej ~469 m; live AOI ma szerokość 500 m. Tylko ai_visual_image_count oznacza obrazy obejrzane przez model. Zbliżenie nie zwiększa natywnej rozdzielczości sensora.'
-        : 'Tylko ai_visual_image_count oznacza obrazy obejrzane przez model. Galeria roczna jest materiałem źródłowym do kontroli człowieka, nie automatycznie przeanalizowanym szeregiem.',
+        : analysis?.regional_patrol
+          ? `Tylko ai_visual_image_count oznacza obrazy obejrzane przez model. Patrol obejrzał ${analysis.regional_patrol.inspected_tiles}/${analysis.regional_patrol.requested_tiles} zbliżeń; jego nominalne pokrycie to najwyżej ${analysis.regional_patrol.nominal_coverage_upper_bound_percent.toFixed(2)}%, więc nie sprawdzono całego AOI. Zbliżenie nie zwiększa natywnej rozdzielczości sensora.`
+          : 'Tylko ai_visual_image_count oznacza obrazy obejrzane przez model. Galeria roczna jest materiałem źródłowym do kontroli człowieka, nie automatycznie przeanalizowanym szeregiem.',
     },
     observations,
     screeningSignals: signals,

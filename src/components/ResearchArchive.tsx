@@ -42,6 +42,23 @@ function ArchivedWaterExtrema({ entry }: { entry: ResearchArchiveEntry }) {
   </section>
 }
 
+function ArchivedRegionalPatrol({ entry }: { entry: ResearchArchiveEntry }) {
+  const patrol = entry.regionalPatrol
+  if (!patrol) return null
+  return <section className="lab-regional-patrol" aria-label="Zapis patrolu regionalnego">
+    <div className="lab-section-title"><h3>Patrol regionalny zbliżeń</h3><StatusBadge value={patrol.status.replaceAll('_', ' ')} /></div>
+    <div className="lab-metrics">
+      <article><b>{patrol.inspectedTiles}/{patrol.requestedTiles}</b><span>kadrów obejrzanych</span></article>
+      <article><b>{patrol.frameWidthKm.toFixed(1)} km</b><span>szerokość kadru</span></article>
+      <article><b>≤ {patrol.coverageUpperBoundPercent.toFixed(2)}%</b><span>pokrycie AOI</span></article>
+    </div>
+    <p className="lab-note">Data źródła: {patrol.sourceDate ?? 'nieustalona'} · natywna rozdzielczość: {patrol.nominalResolutionM ? `około ${patrol.nominalResolutionM} m` : 'nieustalona'}. Co najmniej {patrol.uninspectedAreaLowerBoundPercent.toFixed(2)}% AOI pozostało poza próbkami. Patrol sam nie potwierdza zmiany w czasie.</p>
+    {patrol.assessmentOverview ? <p><b>Ocena kadrów:</b> {patrol.assessmentOverview}</p> : null}
+    {patrol.tileFindings?.length ? <details><summary>Opisane kadry patrolu ({patrol.tileFindings.length})</summary><ul>{patrol.tileFindings.map(finding => <li key={finding.tileId}><b>{finding.tileId}</b> · {finding.surfaceClass.replaceAll('_', ' ')} · {finding.hydrologyFeature.replaceAll('_', ' ')} · {finding.observation} ({finding.confidence})</li>)}</ul></details> : null}
+    <details><summary>Współrzędne zapisanych kadrów</summary><ul>{patrol.tileManifest.map(tile => <li key={tile.tileId}><b>{tile.tileId}</b> · {tile.latitude.toFixed(6)}, {tile.longitude.toFixed(6)} · {tile.status.replaceAll('_', ' ')}</li>)}</ul></details>
+  </section>
+}
+
 export function ResearchArchive() {
   const [entries, setEntries] = useState(() => readResearchArchive())
 
@@ -71,6 +88,7 @@ export function ResearchArchive() {
         <p><b>AOI:</b> promień {entry.area.radiusKm} km · {entry.period.startYear}–{entry.period.endYear} · {entry.period.season}</p>
         <ArchivedTest001Finding entry={entry} />
         <ArchivedWaterExtrema entry={entry} />
+        <ArchivedRegionalPatrol entry={entry} />
         <ul>{entry.shortSummary.map((item, index) => <li key={`${entry.id}-summary-${index}`}>{item}</li>)}</ul>
         {entry.hydrology ? <details><summary>Dopływy, odpływy i ubytek wody</summary>
           <p><b>Zmiana wody:</b> {entry.hydrology.waterChangeState}</p>
