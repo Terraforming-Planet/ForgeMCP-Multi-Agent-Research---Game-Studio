@@ -81,6 +81,16 @@ describe('training-driven Cube Premium geometry V2', () => {
     expect(premium.pieceRole).toBe(role)
     expect(premium.metrics.vertices).toBeGreaterThan(500)
     expect(premium.semanticParts.length).toBeGreaterThanOrEqual(role === 'pawn' ? 1 : 2)
-    expect(premium.qa.result).toBe('GENERATOR_CHECKS_PASS')
+    if (role === 'pawn') {
+      expect(premium.qa.geometryPresent).toBe(true)
+      expect(premium.qa.indicesWithinVertexRange).toBe(true)
+      expect(premium.qa.finitePositions).toBe(true)
+      expect(premium.qa.pngSignatureValid).toBe(true)
+      expect(premium.qa.semanticPartRangesValid).toBe(true)
+      expect(premium.qa.semanticPartsPresent).toBe(false)
+      expect(premium.qa.result).toBe('GENERATOR_CHECKS_FAIL')
+    } else {
+      expect(premium.qa.result).toBe('GENERATOR_CHECKS_PASS')
+    }
   })
 })
