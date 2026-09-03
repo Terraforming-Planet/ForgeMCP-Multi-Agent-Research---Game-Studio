@@ -21,6 +21,7 @@
 - [x] Local glTF + PNG generator test PASS
 - [x] Basic Game Generator creates a versioned playable game and deterministic computer reply
 - [x] Cube Premium 30-day local test stays Cube-only and never gates judging
+- [x] Cube Premium subscription route shows three board generators, seven figure/character presets, custom prompts, live 3D/texture previews and a playable local game
 - [x] Pinned TEST 001 source pair visible before a live Terra run
 - [x] Shopify/RFQ side effects blocked in TEST mode
 - [x] Generated concepts separated from original satellite evidence
