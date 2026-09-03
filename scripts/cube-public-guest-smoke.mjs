@@ -2,7 +2,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import process from 'node:process'
 import { setTimeout as sleep } from 'node:timers/promises'
 
-const cubeRevision = 'cdcac98ef4f527ae1f08c57ad4366d295ba8d3b1'
+const cubeRevision = 'e022239d15379127c4cda45e4b581b33ad48201c'
 const targetUrl = process.env.CUBE_GUEST_URL || `https://teslaeco.github.io/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/guest.html?rev=${cubeRevision}`
 const chromeBin = process.env.CHROME_BIN || 'google-chrome'
 const debugPort = Number(process.env.CUBE_GUEST_DEBUG_PORT || 9444)
@@ -95,7 +95,6 @@ try {
             readyState: document.readyState,
             directGuestMarker: document.documentElement.dataset.directGuest || null,
             directGuestActivated: document.documentElement.dataset.directGuestActivated || null,
-            directGuestClickAttempt: document.documentElement.dataset.directGuestClickAttempt || null,
             storedGuestMode: storedGuest?.mode || null,
             authMode: app?.dataset?.authMode || null,
             playerId: app?.dataset?.playerId || null,
@@ -112,8 +111,8 @@ try {
 
     if (!String(result?.href || '').includes('/guest.html')) throw new Error(`Dedicated guest page was not loaded: ${JSON.stringify(result)}`)
     if (result?.directGuestMarker !== 'true') throw new Error(`Dedicated guest marker missing: ${JSON.stringify(result)}`)
-    if (result?.directGuestActivated !== 'true') throw new Error(`Existing guest path did not complete: ${JSON.stringify(result)}`)
-    if (result?.storedGuestMode !== 'guest') throw new Error(`Guest identity was not created by the normal guest path: ${JSON.stringify(result)}`)
+    if (result?.directGuestActivated !== 'true') throw new Error(`AuthGate direct guest path did not complete: ${JSON.stringify(result)}`)
+    if (result?.storedGuestMode !== 'guest') throw new Error(`Guest identity was not created by the normal guest contract: ${JSON.stringify(result)}`)
     if (result?.authMode !== 'guest') throw new Error(`Expected guest auth mode: ${JSON.stringify(result)}`)
     if (!result?.gateHidden) throw new Error(`Auth provider gate is still visible: ${JSON.stringify(result)}`)
     if (!result?.appVisible) throw new Error(`Cube application is not visible: ${JSON.stringify(result)}`)
