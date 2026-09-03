@@ -2,7 +2,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import process from 'node:process'
 import { setTimeout as sleep } from 'node:timers/promises'
 
-const cubeRevision = '82e68f46897c6536627f9669d6e05ead5596f5a7'
+const cubeRevision = '614a3a647965079f0d4c101352076b2982a813f7'
 const targetUrl = process.env.CUBE_GUEST_URL || `https://teslaeco.github.io/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/?guest=1&rev=${cubeRevision}`
 const chromeBin = process.env.CHROME_BIN || 'google-chrome'
 const debugPort = Number(process.env.CUBE_GUEST_DEBUG_PORT || 9444)
@@ -94,6 +94,7 @@ try {
             href: location.href,
             readyState: document.readyState,
             directGuestMarker: document.documentElement.dataset.directGuest || null,
+            directGuestActivated: document.documentElement.dataset.directGuestActivated || null,
             storedGuestMode: storedGuest?.mode || null,
             authMode: app?.dataset?.authMode || null,
             playerId: app?.dataset?.playerId || null,
@@ -109,7 +110,8 @@ try {
     }
 
     if (result?.directGuestMarker !== 'true') throw new Error(`Fresh deployed index guest marker missing: ${JSON.stringify(result)}`)
-    if (result?.storedGuestMode !== 'guest') throw new Error(`Guest identity was not seeded before startup: ${JSON.stringify(result)}`)
+    if (result?.directGuestActivated !== 'true') throw new Error(`Existing guest button was not activated: ${JSON.stringify(result)}`)
+    if (result?.storedGuestMode !== 'guest') throw new Error(`Guest identity was not created by the normal guest path: ${JSON.stringify(result)}`)
     if (result?.authMode !== 'guest') throw new Error(`Expected guest auth mode: ${JSON.stringify(result)}`)
     if (!result?.gateHidden) throw new Error(`Auth provider gate is still visible: ${JSON.stringify(result)}`)
     if (!result?.appVisible) throw new Error(`Cube application is not visible: ${JSON.stringify(result)}`)
