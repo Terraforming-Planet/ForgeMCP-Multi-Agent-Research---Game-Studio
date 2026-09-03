@@ -38,4 +38,11 @@ describe('playable research worlds V4', () => {
     expect(html).toContain('Dowody Terra pozostają w źródłowych aplikacjach i oficjalnych danych')
     expect(html).toContain('3D scene is visualization only')
   })
+
+  it('contains syntactically valid module JavaScript', () => {
+    const script = html.match(/<script type="module">([\s\S]*?)<\/script>/)?.[1]
+    expect(script).toBeTruthy()
+    const withoutImports = script!.replace(/^import .*;$/gm, '')
+    expect(() => new Function(`return (async () => {${withoutImports}})`)).not.toThrow()
+  })
 })
