@@ -10,6 +10,7 @@ import {
 import { StatusBadge } from './StatusBadge'
 import { CubePremiumAssetStudio } from './CubePremiumAssetStudio'
 import { CubeOwnerTrainingPanel } from './CubeOwnerTrainingPanel'
+import { BasicGame3DGenerator } from './BasicGame3DGenerator'
 import './CubePremiumSubscription.css'
 
 interface CubePremiumSubscriptionProps {
@@ -81,6 +82,7 @@ export function CubePremiumSubscription({ storage = defaultStorage(), now = () =
       </section>
 
       <CubePremiumAssetStudio trialActive={active} />
+      <BasicGame3DGenerator />
       <CubeOwnerTrainingPanel />
 
       <section className="cube-premium-grid" aria-label="Zakres Cube Chess Premium">
@@ -92,6 +94,7 @@ export function CubePremiumSubscription({ storage = defaultStorage(), now = () =
             <li>3 plansze: Cube Chess 512, Classic Black &amp; White i Lab LEDColor</li>
             <li>Figury z osobnymi presetami i edytowalnym własnym promptem</li>
             <li>Lokalne generowanie glTF + PNG + manifest QA</li>
+            <li>Generator podstawowej gry: blueprint + plansza 3D + 6 typów figur 3D</li>
             <li>Biblioteka produkcyjnych promptów dla pełnego zestawu figur i plansz</li>
             <li>Plan legalnego self-play i treningu przeciwnika z prywatnego źródła właściciela</li>
           </ul>
