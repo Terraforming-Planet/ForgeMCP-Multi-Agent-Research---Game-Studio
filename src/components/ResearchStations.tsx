@@ -5,6 +5,7 @@ import type { ResearchStation } from '../types/core'
 import { readLocalJson, writeLocalJson } from '../lib/storage'
 import { StationConceptVisual } from './StationConceptVisual'
 import { LiveProjectFrame } from './LiveProjectFrame'
+import { ResearchStation3DWorkbench } from './ResearchStation3DWorkbench'
 
 const storageKey = 'forgemcp.researchStations'
 
@@ -54,16 +55,16 @@ export function ResearchStations() {
 
   function selectSourceStation(id: ResearchStationPresetId) {
     setSourceStationId(id)
-    window.requestAnimationFrame(() => document.getElementById('source-station-preview')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    window.requestAnimationFrame(() => document.getElementById('station-3d-workbench')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
   return (
     <>
       <section className="card station-intro">
-        <p className="eyebrow">FOUR SHARED RESEARCH-STATION CONCEPTS</p>
-        <h1>Earth missions become visual systems for Game Studio</h1>
-        <p>Arctic, Sahara, Ocean and Earth–Space are reusable mission and design presets. In Terra they focus the investigation; in Game Studio their materials, colours and geometry inspire reversible board, piece and texture concepts.</p>
-        <p className="lab-note"><b>Truth boundary:</b> these images are generated concept models. They are not deployed physical stations and they do not provide live telemetry.</p>
+        <p className="eyebrow">FOUR SHARED RESEARCH-STATION CONCEPTS · LIVE SOURCE + GENERATED 3D</p>
+        <h1>Stacje badawcze zachowują funkcje źródłowe i dostają własne modele 3D</h1>
+        <p>Arctic, Sahara, Ocean i Earth–Space są wspólnymi presetami misji. W Terra uruchamiają dochodzenie środowiskowe, w Game Studio przekazują materiały, kolory i geometrię, a tutaj każda stacja ma dodatkowo generowany model 3D z modułami odpowiadającymi jej funkcjom.</p>
+        <p className="lab-note"><b>Granica prawdy:</b> grafiki i modele 3D są generowanymi koncepcjami. Nie są zdjęciami oryginalnych stacji ani dowodem wdrożonego sprzętu. Oryginalny interfejs źródłowy jest pokazany osobno i wyraźnie opisany.</p>
       </section>
 
       <section className="station-grid" aria-label="Four ForgeMCP research station presets">
@@ -88,8 +89,8 @@ export function ResearchStations() {
               <p className="lab-note">{item.truthBoundary}</p>
               <div className="toolbar">
                 {item.terraPresetAvailable ? <Link className="button-link" to={`/labmcp?station=${item.id}&region=${encodeURIComponent(item.regionQuery)}`}>Investigate with Terra</Link> : null}
-                <button type="button" onClick={() => selectSourceStation(item.id)}>Select live preview</button>
-                <a className="button-link" href={item.publicUrl} target="_blank" rel="noreferrer">Open source station ↗</a>
+                <button type="button" onClick={() => selectSourceStation(item.id)}>Pokaż model 3D + źródło</button>
+                <a className="button-link" href={item.publicUrl} target="_blank" rel="noreferrer">Otwórz oryginalną stację ↗</a>
                 <Link className="button-link button-link--quiet" to={`/game-studio?station=${item.id}`}>Use in Game Studio</Link>
               </div>
             </div>
@@ -97,13 +98,17 @@ export function ResearchStations() {
         ))}
       </section>
 
+      <div id="station-3d-workbench">
+        <ResearchStation3DWorkbench key={sourceStation.id} station={sourceStation} />
+      </div>
+
       <section className="card source-station-preview" id="source-station-preview">
         <LiveProjectFrame
           key={sourceStation.id}
-          title={`${sourceStation.name} · ${sourceStation.subtitle}`}
+          title={`ORYGINALNY INTERFEJS ŹRÓDŁOWY · ${sourceStation.name} · ${sourceStation.subtitle}`}
           url={sourceStation.publicUrl}
-          description={`Load the original ${sourceStation.name} public research interface from the Polar Sun Moon Analysis repository. ForgeMCP keeps it separate from the concept image and from any physical-station claim.`}
-          loadLabel={`Load ${sourceStation.name} source lab`}
+          description={`To jest oryginalny publiczny interfejs ${sourceStation.name} z projektu Polar Sun Moon Analysis. Jest oddzielony od wygenerowanej grafiki koncepcyjnej i od wygenerowanego modelu 3D powyżej.`}
+          loadLabel={`Wczytaj oryginalną stację ${sourceStation.name}`}
           instructions={sourceStation.implementedWork.join(' · ')}
         />
       </section>
