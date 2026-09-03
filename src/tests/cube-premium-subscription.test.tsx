@@ -101,9 +101,12 @@ describe('Cube Premium local test', () => {
     expect(screen.getByText(/Podgląd, tekstury i pliki glTF pochodzą z tej samej specyfikacji/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Pobierz planszę .gltf' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Pobierz figurę .gltf' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Pobierz planszę gry .gltf' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Wygeneruj podstawową grę i od razu wykonaj ruch' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Generator podstawowej gry z pakietem 3D' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Generate playable game' })).toBeTruthy()
-    expect(screen.getByLabelText('Zaawansowany prompt produkcyjny Cube Chess')).toHaveValue(expect.stringContaining('KNIGHT — HIGHEST PRIORITY'))
+    const productionPrompt = screen.getByLabelText('Zaawansowany prompt produkcyjny Cube Chess') as HTMLTextAreaElement
+    expect(productionPrompt.value).toContain('KNIGHT — HIGHEST PRIORITY')
     expect(fetchSpy).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Wyczyść lokalny stan testu' }))
