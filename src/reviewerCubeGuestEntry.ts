@@ -1,6 +1,9 @@
 import { CUBE_PUBLIC_URL } from './integrations/cube/adapter'
 
-export const CUBE_GUEST_URL = `${CUBE_PUBLIC_URL}?guest=1`
+// Pinned to the deployed Cube build that contains the explicit ForgeMCP guest-entry flow.
+// The revision query also prevents GitHub Pages/CDN from serving an older cached index.html.
+export const CUBE_GUEST_REVISION = '614a3a647965079f0d4c101352076b2982a813f7'
+export const CUBE_GUEST_URL = `${CUBE_PUBLIC_URL}?guest=1&rev=${CUBE_GUEST_REVISION}`
 
 export function applyReviewerCubeGuestEntry() {
   document.querySelectorAll<HTMLAnchorElement>('a[data-cube-public-entry="true"]').forEach(anchor => {
@@ -22,9 +25,8 @@ function scheduleApply() {
 export function installReviewerCubeGuestEntry() {
   if (typeof document === 'undefined') return
 
-  // Register this capture handler before reviewerCubePublicEntry installs its
-  // generic public-game handler. An explicit guest URL selects Cube's existing
-  // anonymous guest mode; it does not grant an authenticated account.
+  // Use Cube's existing anonymous guest path. This does not create an account
+  // or grant account/ranking/multiplayer privileges.
   document.addEventListener('click', event => {
     const target = event.target as Element | null
     const anchor = target?.closest<HTMLAnchorElement>('a[data-cube-public-entry="true"]')
