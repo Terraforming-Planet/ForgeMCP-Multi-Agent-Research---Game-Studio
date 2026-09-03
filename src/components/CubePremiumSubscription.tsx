@@ -9,6 +9,7 @@ import {
 } from '../integrations/cube/premiumTrial'
 import { StatusBadge } from './StatusBadge'
 import { CubePremiumAssetStudio } from './CubePremiumAssetStudio'
+import { CubeOwnerTrainingPanel } from './CubeOwnerTrainingPanel'
 import './CubePremiumSubscription.css'
 
 interface CubePremiumSubscriptionProps {
@@ -53,19 +54,19 @@ export function CubePremiumSubscription({ storage = defaultStorage(), now = () =
     <div className="cube-premium-page">
       <section className="cube-premium-hero">
         <div>
-          <p className="cube-premium-kicker">CUBE CHESS ONLY · LOCAL PRODUCT FLOW</p>
+          <p className="cube-premium-kicker">SUBSKRYPCJA · TYLKO CUBE CHESS · 30 DNI TESTU</p>
           <h1>Cube Chess Premium</h1>
-          <p className="cube-premium-lead">Wypróbuj wizualny pakiet Cube Chess Premium przez 30 dni w tej przeglądarce.</p>
+          <p className="cube-premium-lead">Plansze, figury, własne generowanie 3D + tekstur, Lab LEDColor oraz zatwierdzony przez właściciela pipeline Arena Chess są zebrane w jednym miejscu. Lokalny test Premium trwa 30 dni i nie wymaga płatności.</p>
           <div className="cube-premium-actions">
-            {!active ? <button type="button" onClick={activateTrial}>{expired ? 'Uruchom ponownie bezpłatny test na 30 dni' : 'Wypróbuj bezpłatnie przez 30 dni'}</button> : null}
+            {!active ? <button type="button" onClick={activateTrial}>{expired ? 'Uruchom ponownie bezpłatny test na 30 dni' : 'Przetestuj Premium za darmo przez miesiąc'}</button> : null}
             {trial.status !== 'NOT_STARTED' ? <button type="button" className="cube-premium-secondary" onClick={resetTrial}>Wyczyść lokalny stan testu</button> : null}
             <Link to="/game-studio">Przejdź do bezpłatnego Game Studio</Link>
           </div>
         </div>
         <div className="cube-premium-badges" aria-label="Granice prototypu">
-          <StatusBadge value="TEST MODE" />
+          <StatusBadge value="30 DAYS FREE TEST" />
           <StatusBadge value="NO PAYMENT" />
-          <StatusBadge value="CUBE ONLY" />
+          <StatusBadge value="CUBE CHESS ONLY" />
         </div>
       </section>
 
@@ -80,19 +81,26 @@ export function CubePremiumSubscription({ storage = defaultStorage(), now = () =
       </section>
 
       <CubePremiumAssetStudio trialActive={active} />
+      <CubeOwnerTrainingPanel />
 
       <section className="cube-premium-grid" aria-label="Zakres Cube Chess Premium">
         <article>
           <StatusBadge value="AVAILABLE NOW" />
-          <h2>Bezpłatna ścieżka demonstracyjna</h2>
+          <h2>Działa teraz</h2>
           <ul>{offer.availableNow.map(item => <li key={item}>{item}</li>)}</ul>
-          <p>Te funkcje nie są blokowane przez stan lokalnego testu.</p>
+          <ul>
+            <li>3 plansze: Cube Chess 512, Classic Black &amp; White i Lab LEDColor</li>
+            <li>Figury z osobnymi presetami i edytowalnym własnym promptem</li>
+            <li>Lokalne generowanie glTF + PNG + manifest QA</li>
+            <li>Biblioteka produkcyjnych promptów dla pełnego zestawu figur i plansz</li>
+            <li>Plan legalnego self-play i treningu przeciwnika z prywatnego źródła właściciela</li>
+          </ul>
         </article>
         <article>
-          <StatusBadge value="INTAKE PENDING" />
-          <h2>Pakiet wizualny właściciela</h2>
+          <StatusBadge value="OWNER ARCHIVE INTAKE" />
+          <h2>Oryginalny pakiet modeli właściciela</h2>
           <ul>{offer.intakePending.map(item => <li key={item}>{item}</li>)}</ul>
-          <p>Elementy pojawią się po audycie manifestu, optymalizacji i kontroli praw do każdego pliku.</p>
+          <p>Po pobraniu paczki właściciela pliki mają przejść manifest, SHA-256, kontrolę skali/pivotu/UV/PBR oraz podgląd przed zastąpieniem proceduralnych fallbacków.</p>
         </article>
         <article>
           <StatusBadge value="PLANNED" />
@@ -104,7 +112,7 @@ export function CubePremiumSubscription({ storage = defaultStorage(), now = () =
 
       <section className="cube-premium-boundary">
         <p className="cube-premium-kicker">UCZCIWA GRANICA TESTU</p>
-        <h2>Zero konta, płatności i blokady gry</h2>
+        <h2>Premium dotyczy tylko Cube Chess</h2>
         <p>To lokalna demonstracja przepływu produktu. Nie tworzy konta, koszyka Shopify, zamówienia, płatności ani odnawialnej subskrypcji. Nie wykonuje połączeń sieciowych.</p>
         <p>Pełna ścieżka oceniana przez jurorów pozostaje bezpłatna i bez logowania. Terra Observation oraz stacje badawcze nie są objęte subskrypcją.</p>
       </section>
