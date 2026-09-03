@@ -9,6 +9,7 @@ import { StatusBadge } from './StatusBadge'
 import { MiniChessGame } from './MiniChessGame'
 import { LiveProjectFrame } from './LiveProjectFrame'
 import { ProceduralAssetViewer } from './ProceduralAssetViewer'
+import { PlayableStationWorlds } from './PlayableStationWorlds'
 import { createAssetSpecification } from '../integrations/commerce/productLab'
 import { generateProceduralAssetBundle } from '../integrations/commerce/proceduralAssets'
 
@@ -125,15 +126,17 @@ export function GameStudio() {
         <div>
           <p className="eyebrow">LEARN · COMPETE · CREATE · VERIFY</p>
           <h1>ForgeMCP Game Studio</h1>
-          <p>Use the four Terra research stations as material and lighting systems, preview boards and piece families, then run the real pinned Cube Chess benchmark before any human-approved upstream change.</p>
+          <p>Use the four Terra research stations as material and lighting systems, explore them as playable research-world concepts with Earth Guardian, preview boards and piece families, then run the real pinned Cube Chess benchmark before any human-approved upstream change.</p>
           <div className="toolbar">
             <a className="button-link button-link--primary" href={CUBE_URL} target="_blank" rel="noreferrer">Play the live Cube Chess 512 ↗</a>
             <Link className="button-link button-link--commerce" to="/cube-premium">Cube Premium · 30-day local test</Link>
             <Link className="button-link" to="/shop-lab">Open 3D + Shopify Test Lab</Link>
           </div>
         </div>
-        <div className="studio-hero__status"><StatusBadge value="REAL ENGINE" /><StatusBadge value="VISUAL PREVIEW" /><StatusBadge value="HUMAN GATE" /></div>
+        <div className="studio-hero__status"><StatusBadge value="REAL ENGINE" /><StatusBadge value="PLAYABLE 3D" /><StatusBadge value="HUMAN GATE" /></div>
       </section>
+
+      <PlayableStationWorlds station={station} />
 
       <section className="studio-workbench">
         <div className="studio-controls card">

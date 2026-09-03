@@ -96,8 +96,8 @@ describe('Cube Premium local test', () => {
     fireEvent.change(screen.getByLabelText(/Własny prompt modelu i tekstury/), { target: { value: 'Zaprojektuj króla szachowego z mocną koroną, czytelną sylwetką i niebiesko-zielonym LED.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Wygeneruj zestaw 3D + tekstury' }))
 
-    expect(screen.getByRole('img', { name: /Rotating live preview of Cube Chess 512 eight-level board/i })).toBeTruthy()
-    expect(screen.getByRole('img', { name: /Rotating live preview of ForgeMCP faceted king/i })).toBeTruthy()
+    expect(screen.getByRole('img', { name: /Rotating semantic preview of Cube Chess 512 eight-level board/i })).toBeTruthy()
+    expect(screen.getByRole('img', { name: /Rotating semantic preview of ForgeMCP faceted king/i })).toBeTruthy()
     expect(screen.getByText(/Podgląd, tekstury i pliki glTF pochodzą z tej samej specyfikacji/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Pobierz planszę .gltf' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Pobierz figurę .gltf' })).toBeTruthy()

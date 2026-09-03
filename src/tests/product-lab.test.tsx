@@ -33,7 +33,7 @@ describe('3D and Shopify test lab', () => {
     expect(screen.getByRole('button', { name: /TEST 01.*Cube Asset Test/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /TEST 02.*Terra Station Test/i })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Generate and show 3D model + texture' }))
-    expect(screen.getByRole('img', { name: /Rotating live preview of Earth Guardian character/i })).toBeTruthy()
+    expect(screen.getByRole('img', { name: /Rotating semantic preview of Earth Guardian character/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Download .gltf model' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Assistant: prepare Codex brief' }))
     expect(screen.getByText('Agent plan ready — execution not started')).toBeTruthy()
