@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent } from 'react'
-import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import './index.css'
-import cosmicHero from './assets/forgemcp-hero-background.webp'
+import './reviewer.css'
 import { agentRegistry } from './agents/registry'
 import { ApprovalQueue } from './components/ApprovalQueue'
 import { ChallengeEvidence } from './components/ChallengeEvidence'
@@ -17,95 +17,102 @@ import { StatusBadge } from './components/StatusBadge'
 import { Timeline } from './components/Timeline'
 import { ToolInspector } from './components/ToolInspector'
 import { runCoordinator } from './coordinator/workflows'
-import { RESEARCH_STATION_PRESETS } from './data/researchStations'
-import { checkCubeHealth } from './integrations/cube/adapter'
-import { checkTerraHealth } from './integrations/terra/adapter'
+import { checkCubeHealth, CUBE_PUBLIC_URL } from './integrations/cube/adapter'
+import { checkTerraHealth, TERRA_APP_URL } from './integrations/terra/adapter'
 import type { ProvenanceRecord, WorkflowRun } from './types/core'
 import { detectWebMcpAvailability, registerWebMcpTools } from './webmcp/detection'
 import { webmcpTools } from './webmcp/registry'
 
 function Home() {
-  const navigate = useNavigate()
-  const [region, setRegion] = useState('')
-
-  function openResearch(event: FormEvent) {
-    event.preventDefault()
-    const query = region.trim()
-    navigate(query ? `/labmcp?region=${encodeURIComponent(query)}` : '/labmcp')
-  }
-
   return (
-    <>
-      <section className="cosmic-hero">
-        <img className="cosmic-hero__media" src={cosmicHero} alt="" aria-hidden="true" />
-        <div className="cosmic-hero__content">
-          <p className="hero-kicker">WEBMCP ORCHESTRATION · EARTH + GAME AI</p>
-          <h1 className="cosmic-title">FORGE<span>MCP</span></h1>
-          <p className="hero-repo-name">MULTI-AGENT RESEARCH × GAME STUDIO</p>
-          <p className="hero-lead">One WebMCP control layer for two difficult worlds: evidence-first Earth observation and deterministic game creation. Agents may investigate, simulate and propose; verified evidence and human approval remain the authority.</p>
-          <div className="hero-actions">
-            <Link className="button-link button-link--primary" to="/labmcp">Search satellite evidence</Link>
-            <Link className="button-link" to="/game-studio">Open Game Studio</Link>
-            <Link className="button-link button-link--commerce" to="/shop-lab">3D + Shopify Test</Link>
+    <div className="reviewer-home">
+      <section className="reviewer-hero">
+        <div className="reviewer-badge">JUDGE DEMO · SIMPLE 3-MINUTE FLOW</div>
+        <h1>FORGE<span>MCP</span></h1>
+        <p className="reviewer-tagline">One browser-native WebMCP layer connecting real Earth observation with deterministic Cube Chess 512 AI, game creation and verification.</p>
+        <p className="reviewer-subline">The reviewer only needs one page: Terra Observatory on the left, Cube Chess on the right, then a short explanation of what WebMCP changed. Terra remains evidence-first; Cube remains rules-engine-first; consequential changes still require visible verification and human approval.</p>
+        <div className="reviewer-truthbar" aria-label="ForgeMCP project pillars">
+          <span>OBSERVE THE REAL WORLD → TERRA</span>
+          <span>LEARN &amp; COMPETE → CUBE</span>
+          <span>CREATE → GAME STUDIO</span>
+          <span>VERIFY → SOURCES · TESTS · APPROVAL</span>
+        </div>
+        <div className="reviewer-codex"><strong>Built with OpenAI Codex assistance during the WebMCP Challenge.</strong> ForgeMCP is the challenge-period integration and workflow layer built on top of pre-challenge Terra Observation System and Cube Chess 512. We do not present the older Terra/Cube systems as new challenge work.</div>
+      </section>
+
+      <section className="reviewer-live-grid" aria-label="Live Terra and Cube applications">
+        <article className="reviewer-live-panel reviewer-live-panel--terra">
+          <header className="reviewer-live-head">
+            <div><p>01 · TERRA OBSERVATORY · LIVE</p><h2>Observe, compare and verify Earth</h2></div>
+            <Link to="/labmcp">Open focused Terra workflow →</Link>
+          </header>
+          <div className="reviewer-frame">
+            <iframe title="Terra Observatory live application" src={TERRA_APP_URL} loading="eager" referrerPolicy="strict-origin-when-cross-origin" />
           </div>
-          <form className="hero-search" onSubmit={openResearch}>
-            <label htmlFor="hero-region">Place, lake, river, mountain range or region</label>
-            <div><input id="hero-region" value={region} onChange={event => setRegion(event.target.value)} placeholder="e.g. Lake Chad, Wisła, Himalayas" /><button type="submit">Open Terra investigation</button></div>
-            <small>Search resolves a place first. Satellite evidence, hypotheses and an unsent alert draft appear only after the Terra run returns.</small>
-          </form>
-        </div>
-      </section>
-
-      <section className="workspace-launchpad" aria-label="ForgeMCP workspaces">
-        <article className="workspace-card workspace-card--terra">
-          <span className="workspace-number">01</span><p className="eyebrow">OBSERVE · INVESTIGATE · VERIFY</p>
-          <h2>Terra Satellite Research</h2>
-          <p>Search a real place, compare official/public Earth-observation products across years, examine water, terrain and hazard signals, then preserve uncertainty and source provenance.</p>
-          <ul><li>Original satellite inputs are labelled</li><li>20 × 1 km sparse patrol option</li><li>Preliminary alert stays unsent</li></ul>
-          <Link className="button-link button-link--primary" to="/labmcp">Open the satellite search</Link>
+          <div className="reviewer-frame-note"><b>Truth boundary:</b><span>Original/public satellite products and recorded evidence stay separate from generated visuals. ForgeMCP improves the investigation workflow and display detail; it does not claim higher native sensor resolution.</span></div>
         </article>
 
-        <article className="workspace-card workspace-card--game">
-          <span className="workspace-number">02</span><p className="eyebrow">LEARN · COMPETE · CREATE</p>
-          <h2>Game Studio</h2>
-          <p>Apply Arctic, Sahara, Ocean and Earth–Space materials to board and piece concepts, inspect Cube work in progress and execute the real four-game deterministic benchmark.</p>
-          <ul><li>Cube Chess 8×8×8 reference</li><li>Classic + Lab LEDColor previews</li><li>Reversible visual QA</li></ul>
-          <div className="workspace-card__actions"><Link className="button-link button-link--primary" to="/game-studio">Open Game Studio</Link><Link className="button-link button-link--quiet" to="/subscription">Subskrypcja Cube Chess · 30 dni za darmo</Link></div>
-        </article>
-
-        <article className="workspace-card workspace-card--commerce">
-          <span className="workspace-number">03</span><p className="eyebrow">ASSISTANT · CODEX · PRODUCT TEST</p>
-          <h2>3D + Shopify Lab</h2>
-          <p>Prepare a figurine, board, texture or station-shell specification; preview the concept; run QA; and create Shopify/RFQ drafts without fake checkout or supplier claims.</p>
-          <ul><li>Codex agent prompt handoff</li><li>Two project-specific Shopify tests</li><li>Payment and RFQ remain blocked</li></ul>
-          <Link className="button-link button-link--commerce" to="/shop-lab">Open the test lab</Link>
+        <article className="reviewer-live-panel reviewer-live-panel--cube">
+          <header className="reviewer-live-head">
+            <div><p>02 · CUBE CHESS 512 · LIVE</p><h2>Play, self-play, improve and verify</h2></div>
+            <Link to="/game-studio">Open Cube Game Studio →</Link>
+          </header>
+          <div className="reviewer-frame">
+            <iframe title="Cube Chess 512 live application" src={CUBE_PUBLIC_URL} loading="eager" referrerPolicy="strict-origin-when-cross-origin" />
+          </div>
+          <div className="reviewer-frame-note"><b>Truth boundary:</b><span>The deterministic Cube rules engine decides legal play. ForgeMCP can run bounded self-play, inspect results and propose visual/AI changes, but promotion still requires recorded PASS evidence and human approval.</span></div>
         </article>
       </section>
 
-      <section className="card why-two-projects">
-        <div><p className="eyebrow">WHY TWO PROJECTS?</p><h2>One safety pattern, tested in reality and simulation</h2></div>
-        <div className="why-grid">
-          <article><span>EARTH</span><h3>Terra tests evidence discipline</h3><p>Public observations can be incomplete and consequences matter. Agents must expose provenance, uncertainty, alternative hypotheses and field-verification gates.</p></article>
-          <article><span>GAME</span><h3>Cube tests repeatable decisions</h3><p>A deterministic engine provides legal moves, replays and reversible candidate evaluation without pretending that a heuristic result is Elo or neural training.</p></article>
-          <article><span>WEBMCP</span><h3>Forge joins the workflow</h3><p>Human request → coordinator → specialist tool → visible result → deterministic QA → explicit human decision.</p></article>
+      <section className="reviewer-section" aria-labelledby="webmcp-changes-heading">
+        <div className="reviewer-section-heading">
+          <div><p>WHAT WEBMCP + CODEX CHANGED</p><h2 id="webmcp-changes-heading">Visible improvements, not a feature dump</h2></div>
+          <small>These are the improvements the reviewer should show in the video. The detailed labs, subscriptions and experimental tools remain available under More, but they no longer compete for attention on the main page.</small>
+        </div>
+        <div className="reviewer-change-grid">
+          <article className="reviewer-change-card">
+            <span>TERRA · SATELLITE WORKFLOW</span>
+            <h3>Faster, clearer investigation</h3>
+            <p>Location-first search, higher-detail <strong>1024 px WMS display previews</strong>, original-image labels, provenance and a sparse <strong>20 × 1 km</strong> regional patrol option make satellite review easier to follow.</p>
+          </article>
+          <article className="reviewer-change-card">
+            <span>TERRA · HAZARD SIGNALS</span>
+            <h3>Alerts stay scientifically bounded</h3>
+            <p>Agents can inspect water, terrain and hazard signals, compare dates and produce a <strong>preliminary alert</strong>, but uncertainty, alternative hypotheses and ground verification remain visible before any verified finding.</p>
+          </article>
+          <article className="reviewer-change-card reviewer-change-card--cube">
+            <span>CUBE · 3D + TEXTURES</span>
+            <h3>Models became testable assets</h3>
+            <p>WebMCP/Game Studio workflows were used to improve <strong>Earth Guardian</strong>, Arctic ice vs steel, Ocean water vs marine metal, Sahara/excavator materials, classic board presentation and Lab LEDColor concepts with reversible QA.</p>
+          </article>
+          <article className="reviewer-change-card reviewer-change-card--verify">
+            <span>WEBMCP · VERIFICATION</span>
+            <h3>The browser proves the integration</h3>
+            <p><strong>50 browser-native WebMCP tools</strong> were discovered and executed in Chrome 151. CI, validation failures, provenance and human-approval gates are part of the visible result instead of hidden claims.</p>
+          </article>
         </div>
       </section>
 
-      <section className="home-stations">
-        <div className="section-heading"><div><p className="eyebrow">FOUR RESEARCH-STATION CONCEPTS</p><h2>From environmental missions to game materials</h2></div><Link to="/stations">Inspect all concepts →</Link></div>
-        <div className="home-station-grid">{RESEARCH_STATION_PRESETS.map(station => <article key={station.id} style={{ '--station-accent': station.accent } as CSSProperties}><span>{station.code}</span><h3>{station.name}</h3><p>{station.subtitle}</p><small>{station.status}</small><div><a href={station.publicUrl} target="_blank" rel="noreferrer">Source station ↗</a><Link to={`/game-studio?station=${station.id}`}>Use texture →</Link></div></article>)}</div>
+      <section className="reviewer-section" aria-labelledby="demo-flow-heading">
+        <div className="reviewer-section-heading">
+          <div><p>REVIEWER VIDEO FLOW</p><h2 id="demo-flow-heading">Three steps. One story.</h2></div>
+          <small>Do not tour every tab. Show one real Terra run, one real Cube/Game Studio run, and one proof that WebMCP actually executed them.</small>
+        </div>
+        <div className="reviewer-demo-steps">
+          <article className="reviewer-step"><b>1</b><h3>Terra Observatory</h3><p>Search a real place → show original/public satellite evidence → compare imagery/signals → show provenance, uncertainty and a preliminary hazard result that remains bounded by verification.</p><Link to="/labmcp">Start Terra demo</Link></article>
+          <article className="reviewer-step"><b>2</b><h3>Cube Chess + Game Studio</h3><p>Show the live Cube game → run the deterministic benchmark or inspect a candidate → show a 3D/material improvement and its PASS/WARNING/FAIL QA result.</p><Link to="/game-studio">Start Cube demo</Link></article>
+          <article className="reviewer-step"><b>3</b><h3>WebMCP proof</h3><p>Show that the browser discovered the tools, executed real handlers, rejected invalid input and blocked promotion without human approval. This is the challenge differentiator.</p><Link to="/challenge">Open proof</Link></article>
+        </div>
+        <div className="reviewer-proofline" aria-label="Verified reviewer proof points"><span className="pass">Chrome 151 PASS</span><span className="pass">Public Pages PASS</span><span>50 WebMCP tools</span><span>Terra provenance</span><span>Cube deterministic legality</span><span>Human approval gate</span></div>
       </section>
 
-      <section className="card home-training">
-        <p className="eyebrow">AUDITABLE TRAINING CONTEXT</p><h2>Historical evidence never becomes a current-run claim</h2>
-        <div className="training-grid">
-          <article><b>100,000</b><span>virtual curriculum games</span><p>Alpha-Beta policy tuning in Cube PR #101 — not full legal games or neural training.</p></article>
-          <article><b>3,000</b><span>legal policy rollouts</span><p>53,993 plies in Cube PR #102 — separate from Forge's current four-game benchmark.</p></article>
-          <article><b>200,016</b><span>Terra #3 streamed windows</span><p>75-region protocol evidence; the production Worker does not load the L4 checkpoint.</p></article>
-          <article><b>9,561</b><span>Terra #4 steps</span><p>95 real scientific pairs and 9 validation pairs; not environmental ground truth.</p></article>
-        </div>
-      </section>
-    </>
+      <div className="reviewer-bottom-actions">
+        <Link className="primary" to="/labmcp">Terra Observatory</Link>
+        <Link className="cube" to="/game-studio">Cube Chess / Game Studio</Link>
+        <Link to="/dashboard">WebMCP Control Center</Link>
+        <Link to="/stations">3D Station Tests</Link>
+      </div>
+    </div>
   )
 }
 
@@ -270,7 +277,7 @@ function MoreMenu() {
   return <div className="desktop-more" ref={menuRef}>
     <button type="button" aria-expanded={open} aria-controls="desktop-more-menu" onClick={() => setOpenPath(open ? null : location.pathname)}>More</button>
     {open ? <div id="desktop-more-menu">
-      <Link to="/dashboard">Control Center</Link><Link to="/stations">4 Station Concepts</Link><Link to="/subscription">Subskrypcja Cube Chess · TEST</Link><Link to="/research-archive">Research Archive</Link><Link to="/tools">WebMCP Tools</Link><Link to="/challenge">Challenge Evidence</Link><Link to="/approval">Human Approval</Link><Link to="/integrations">Integration Status</Link>
+      <Link to="/dashboard">Control Center</Link><Link to="/stations">3D Station Tests</Link><Link to="/research-archive">Research Archive</Link><Link to="/tools">WebMCP Tools</Link><Link to="/approval">Human Approval</Link><Link to="/integrations">Integration Status</Link><Link to="/subscription">Cube Premium · TEST</Link><Link to="/shop-lab">3D + Shopify · TEST</Link>
     </div> : null}
   </div>
 }
@@ -285,11 +292,10 @@ function App() {
       <header className="site-header">
         <Link className="site-brand" to="/"><span>FORGE</span>MCP<small>WEBMCP CONTROL LAYER</small></Link>
         <nav className="desktop-nav" aria-label="Primary navigation">
-          <Link to="/">Home</Link>
-          <Link to="/labmcp">Terra Satellite Lab</Link>
-          <Link to="/game-studio">Game Studio</Link>
-          <Link to="/subscription">Subskrypcja Cube Chess <small>TEST 30 DNI</small></Link>
-          <Link to="/shop-lab">3D + Shopify <small>TEST</small></Link>
+          <Link to="/">Reviewer Home</Link>
+          <Link to="/labmcp">Terra Observatory</Link>
+          <Link to="/game-studio">Cube Chess / Game Studio</Link>
+          <Link to="/challenge">WebMCP Proof</Link>
           <MoreMenu />
         </nav>
       </header>
@@ -325,7 +331,7 @@ function App() {
         </Routes>
       </main>
       <nav className="mobile-tabbar" aria-label="Mobile navigation">
-        <NavLink end to="/"><b>⌂</b><span>Home</span></NavLink><NavLink to="/labmcp"><b>◎</b><span>Terra</span></NavLink><NavLink to="/game-studio"><b>♟</b><span>Studio</span></NavLink><NavLink to="/subscription"><b>★</b><span>Premium</span></NavLink><NavLink to="/stations"><b>✦</b><span>Stations</span></NavLink>
+        <NavLink end to="/"><b>⌂</b><span>Home</span></NavLink><NavLink to="/labmcp"><b>◎</b><span>Terra</span></NavLink><NavLink to="/game-studio"><b>♟</b><span>Cube</span></NavLink><NavLink to="/challenge"><b>✓</b><span>Proof</span></NavLink><NavLink to="/stations"><b>✦</b><span>3D</span></NavLink>
       </nav>
     </div>
   )
