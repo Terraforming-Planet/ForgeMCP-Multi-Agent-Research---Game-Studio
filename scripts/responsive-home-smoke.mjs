@@ -40,13 +40,11 @@ async function connectCdp(webSocketDebuggerUrl) {
   const socket = new WebSocket(webSocketDebuggerUrl)
   const pending = new Map()
   let nextId = 1
-
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Timed out opening DevTools WebSocket')), 10000)
     socket.addEventListener('open', () => { clearTimeout(timer); resolve() }, { once: true })
     socket.addEventListener('error', event => { clearTimeout(timer); reject(new Error(event.message || 'DevTools WebSocket error')) }, { once: true })
   })
-
   socket.addEventListener('message', event => {
     const message = JSON.parse(String(event.data))
     if (!message.id) return
@@ -56,7 +54,6 @@ async function connectCdp(webSocketDebuggerUrl) {
     if (message.error) waiter.reject(new Error(`${message.error.code}: ${message.error.message}`))
     else waiter.resolve(message.result)
   })
-
   const call = (method, params = {}) => {
     const id = nextId++
     return new Promise((resolve, reject) => {
@@ -64,7 +61,6 @@ async function connectCdp(webSocketDebuggerUrl) {
       socket.send(JSON.stringify({ id, method, params }))
     })
   }
-
   return { socket, call }
 }
 
@@ -72,28 +68,18 @@ async function waitForHome(call, deadline) {
   let last
   while (Date.now() < deadline) {
     const evaluated = await call('Runtime.evaluate', {
-      expression: `({
-        readyState: document.readyState,
-        hasHero: !!document.querySelector('.reviewer-hero'),
-        hasCubePublicPreview: !!document.querySelector('[data-cube-open-source-preview]')
-      })`,
+      expression: `({ readyState: document.readyState, hasHero: !!document.querySelector('.reviewer-hero'), hasCubePublicPreview: !!document.querySelector('[data-cube-open-source-preview]'), hasGuestEntry: !!document.querySelector('[data-cube-public-entry][href*="guest=1"]') })`,
       returnByValue: true,
     })
     last = evaluated.result?.value
-    if (['interactive', 'complete'].includes(last?.readyState) && last?.hasHero && last?.hasCubePublicPreview) return
+    if (['interactive', 'complete'].includes(last?.readyState) && last?.hasHero && last?.hasCubePublicPreview && last?.hasGuestEntry) return
     await sleep(200)
   }
   throw new Error(`Timed out waiting for reviewer home: ${JSON.stringify(last)}`)
 }
 
 const chromeArgs = [
-  '--no-first-run',
-  '--no-default-browser-check',
-  '--disable-background-networking',
-  '--disable-component-update',
-  '--disable-dev-shm-usage',
-  '--disable-gpu',
-  '--no-sandbox',
+  '--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-dev-shm-usage','--disable-gpu','--no-sandbox',
   `--remote-debugging-port=${debugPort}`,
   `--user-data-dir=/tmp/forgemcp-responsive-${process.pid}`,
   'about:blank',
@@ -107,92 +93,35 @@ try {
   const pages = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, deadline)
   const page = pages.find(item => item.type === 'page')
   if (!page?.webSocketDebuggerUrl) throw new Error('Chrome page target not found')
-
   const { socket, call } = await connectCdp(page.webSocketDebuggerUrl)
   try {
     await call('Page.enable')
     await call('Runtime.enable')
-
     for (const viewport of viewports) {
-      await call('Emulation.setDeviceMetricsOverride', {
-        width: viewport.width,
-        height: viewport.height,
-        deviceScaleFactor: viewport.scale,
-        mobile: viewport.mobile,
-      })
+      await call('Emulation.setDeviceMetricsOverride', { width: viewport.width, height: viewport.height, deviceScaleFactor: viewport.scale, mobile: viewport.mobile })
       const navigation = await call('Page.navigate', { url: targetUrl })
       if (navigation.errorText) throw new Error(`${viewport.name}: navigation failed: ${navigation.errorText}`)
       await waitForHome(call, deadline)
-
       const evaluation = await call('Runtime.evaluate', {
         expression: `(() => {
-          const root = document.documentElement;
-          const body = document.body;
-          const hero = document.querySelector('.reviewer-hero');
-          const terra = document.querySelector('.reviewer-bottom-actions a.primary');
-          const cube = document.querySelector('.reviewer-bottom-actions a.cube');
-          const panels = [...document.querySelectorAll('.reviewer-live-panel')];
-          const frames = [...document.querySelectorAll('.reviewer-frame iframe')];
-          const cubePreview = document.querySelector('[data-cube-open-source-preview]');
-          const cubePreviewImage = cubePreview?.querySelector('img');
-          const rect = node => node ? node.getBoundingClientRect() : null;
-          const visible = node => {
-            if (!node) return false;
-            const r = rect(node);
-            const style = getComputedStyle(node);
-            return r.width > 0 && r.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-          };
-          return {
-            href: location.href,
-            viewport: { width: innerWidth, height: innerHeight },
-            horizontalOverflow: Math.max(root.scrollWidth, body.scrollWidth) - root.clientWidth,
-            heroVisible: visible(hero),
-            terraVisible: visible(terra),
-            cubeVisible: visible(cube),
-            terraHref: terra?.getAttribute('href'),
-            cubeHref: cube?.getAttribute('href'),
-            panelCount: panels.length,
-            frameCount: frames.length,
-            framesNonInteractive: frames.every(frame => getComputedStyle(frame).pointerEvents === 'none'),
-            cubePreviewVisible: visible(cubePreview),
-            cubePreviewHref: cubePreview?.getAttribute('href'),
-            cubePreviewAlt: cubePreviewImage?.getAttribute('alt'),
-            cubePreviewIsDataImage: String(cubePreviewImage?.getAttribute('src') || '').startsWith('data:image/jpeg;base64,'),
-            terraRect: rect(terra),
-            cubeRect: rect(cube),
-          };
-        })()`,
-        returnByValue: true,
+          const root=document.documentElement, body=document.body, hero=document.querySelector('.reviewer-hero'), terra=document.querySelector('.reviewer-bottom-actions a.primary'), cube=document.querySelector('.reviewer-bottom-actions a.cube'), panels=[...document.querySelectorAll('.reviewer-live-panel')], frames=[...document.querySelectorAll('.reviewer-frame iframe')], cubePreview=document.querySelector('[data-cube-open-source-preview]'), cubePreviewImage=cubePreview?.querySelector('img');
+          const rect=node=>node?node.getBoundingClientRect():null;
+          const visible=node=>{if(!node)return false;const r=rect(node),s=getComputedStyle(node);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};
+          return {viewport:{width:innerWidth,height:innerHeight},horizontalOverflow:Math.max(root.scrollWidth,body.scrollWidth)-root.clientWidth,heroVisible:visible(hero),terraVisible:visible(terra),cubeVisible:visible(cube),terraHref:terra?.getAttribute('href'),cubeHref:cube?.getAttribute('href'),panelCount:panels.length,frameCount:frames.length,framesNonInteractive:frames.every(frame=>getComputedStyle(frame).pointerEvents==='none'),cubePreviewVisible:visible(cubePreview),cubePreviewHref:cubePreview?.getAttribute('href'),cubePreviewAlt:cubePreviewImage?.getAttribute('alt'),cubePreviewIsDataImage:String(cubePreviewImage?.getAttribute('src')||'').startsWith('data:image/jpeg;base64,')};
+        })()`, returnByValue: true,
       })
-
-      if (evaluation.exceptionDetails) throw new Error(`${viewport.name}: Runtime.evaluate failed`)
       const result = evaluation.result?.value
-      if (!result?.heroVisible) throw new Error(`${viewport.name}: hero not visible`)
-      if (!result?.terraVisible || !result?.cubeVisible) throw new Error(`${viewport.name}: Terra/Cube hero entrances not visible`)
-      if (!String(result.terraHref || '').includes('/labmcp')) throw new Error(`${viewport.name}: Terra entrance has wrong href: ${result.terraHref}`)
-      if (!String(result.cubeHref || '').includes(cubePublicHost)) throw new Error(`${viewport.name}: Cube entrance does not open the public game: ${result.cubeHref}`)
-      if (result.panelCount !== 2) throw new Error(`${viewport.name}: expected two visual project cards`)
-      if (result.frameCount !== 1) throw new Error(`${viewport.name}: expected only the Terra live iframe, got ${result.frameCount}`)
-      if (!result.framesNonInteractive) throw new Error(`${viewport.name}: Terra embedded preview is still interactive`)
-      if (!result.cubePreviewVisible) throw new Error(`${viewport.name}: static Cube board preview is not visible`)
-      if (!String(result.cubePreviewHref || '').includes(cubePublicHost)) throw new Error(`${viewport.name}: Cube preview has wrong target: ${result.cubePreviewHref}`)
-      if (!/Static preview of the Cube Chess 512 playable/i.test(String(result.cubePreviewAlt || ''))) throw new Error(`${viewport.name}: Cube preview is not explicitly labelled static`)
-      if (!result.cubePreviewIsDataImage) throw new Error(`${viewport.name}: Cube preview image was not embedded`)
+      if (!result?.heroVisible || !result?.terraVisible || !result?.cubeVisible) throw new Error(`${viewport.name}: reviewer entrances not visible`)
+      if (!String(result.terraHref || '').includes('/labmcp')) throw new Error(`${viewport.name}: Terra href wrong: ${result.terraHref}`)
+      if (!String(result.cubeHref || '').includes(cubePublicHost) || !String(result.cubeHref || '').includes('guest=1')) throw new Error(`${viewport.name}: Cube does not use direct guest URL: ${result.cubeHref}`)
+      if (result.panelCount !== 2 || result.frameCount !== 1 || !result.framesNonInteractive) throw new Error(`${viewport.name}: preview contract failed`)
+      if (!result.cubePreviewVisible || !String(result.cubePreviewHref || '').includes('guest=1')) throw new Error(`${viewport.name}: Cube preview does not use direct guest URL: ${result.cubePreviewHref}`)
+      if (!/Static preview of the Cube Chess 512 playable/i.test(String(result.cubePreviewAlt || '')) || !result.cubePreviewIsDataImage) throw new Error(`${viewport.name}: static Cube preview labelling failed`)
       if (result.horizontalOverflow > 2) throw new Error(`${viewport.name}: horizontal overflow ${result.horizontalOverflow}px`)
-
-      console.log(`RESPONSIVE_HOME_${viewport.name.toUpperCase()}_PASS`, JSON.stringify({
-        viewport: result.viewport,
-        horizontalOverflow: result.horizontalOverflow,
-        terraHref: result.terraHref,
-        cubeHref: result.cubeHref,
-        cubePreviewHref: result.cubePreviewHref,
-      }))
+      console.log(`RESPONSIVE_HOME_${viewport.name.toUpperCase()}_PASS`, JSON.stringify({viewport:result.viewport,horizontalOverflow:result.horizontalOverflow,terraHref:result.terraHref,cubeHref:result.cubeHref,cubePreviewHref:result.cubePreviewHref}))
     }
-
     console.log('RESPONSIVE_HOME_SMOKE_PASS')
-  } finally {
-    socket.close()
-  }
+  } finally { socket.close() }
 } catch (error) {
   console.error(`RESPONSIVE_HOME_SMOKE_FAIL: ${error instanceof Error ? error.message : String(error)}`)
   process.exitCode = 1
