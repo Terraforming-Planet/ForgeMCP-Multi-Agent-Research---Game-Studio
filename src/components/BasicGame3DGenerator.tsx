@@ -119,13 +119,13 @@ export function BasicGame3DGenerator() {
       <div>
         <h3>Plansza 3D</h3>
         <ProceduralAssetViewer bundle={pack.board} />
-        <div className="toolbar"><button type="button" onClick={() => downloadText(pack.board.model.filename, pack.board.model.content, pack.board.model.mimeType)}>Pobierz planszę .gltf</button></div>
+        <div className="toolbar"><button type="button" onClick={() => downloadText(pack.board.model.filename, pack.board.model.content, pack.board.model.mimeType)}>Pobierz planszę gry .gltf</button></div>
       </div>
       <div>
         <h3>Figury 3D</h3>
         <div className="toolbar" aria-label="Wybór figury z pakietu 3D">{PIECES.map(piece => <button type="button" key={piece} aria-pressed={selectedPiece === piece} onClick={() => setSelectedPiece(piece)}>{piece}</button>)}</div>
         <ProceduralAssetViewer bundle={previewPiece} />
-        <div className="toolbar"><button type="button" onClick={() => downloadText(previewPiece.model.filename, previewPiece.model.content, previewPiece.model.mimeType)}>Pobierz {selectedPiece} .gltf</button></div>
+        <div className="toolbar"><button type="button" onClick={() => downloadText(previewPiece.model.filename, previewPiece.model.content, previewPiece.model.mimeType)}>Pobierz figurę gry: {selectedPiece} .gltf</button></div>
       </div>
     </div>
     <p className="lab-note"><b>Granica jakości:</b> te modele są faktycznie generowane i eksportowalne, ale pozostają proceduralnymi assetami testowymi. Docelowe modele właściciela z paczki SwissTransfer powinny je zastąpić dopiero po imporcie, hashach, UV/PBR QA i podglądzie.</p>
