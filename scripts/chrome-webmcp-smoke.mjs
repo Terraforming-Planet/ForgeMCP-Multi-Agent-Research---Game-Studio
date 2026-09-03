@@ -143,7 +143,10 @@ try {
 
       const execute = async (name, input) => {
         const tool = tools.find(candidate => candidate.name === name);
-        return parse(await mc.executeTool(tool, input));
+        // Chrome's current Imperative API documentation specifies a valid JSON
+        // string for executeTool arguments. The browser parses that string back
+        // into the input object before invoking the page's registered handler.
+        return parse(await mc.executeTool(tool, JSON.stringify(input)));
       };
 
       const status = await execute('get_forgemcp_status', {});
@@ -188,7 +191,11 @@ try {
       userGesture: true,
     })
 
-    if (evaluation.exceptionDetails) throw new Error(evaluation.exceptionDetails.text || 'Runtime.evaluate failed')
+    if (evaluation.exceptionDetails) {
+      const exception = evaluation.exceptionDetails.exception?.description || evaluation.exceptionDetails.exception?.value
+      const detail = exception || evaluation.exceptionDetails.text || 'Runtime.evaluate failed'
+      throw new Error(`Chrome page evaluation failed: ${detail}`)
+    }
     const result = evaluation.result?.value
     if (!result?.ok) throw new Error(`Browser contract failed: ${JSON.stringify(result)}`)
     if (result.toolCount < 50) throw new Error(`Expected at least 50 tools, got ${result.toolCount}`)
