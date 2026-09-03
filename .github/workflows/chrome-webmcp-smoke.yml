@@ -23,7 +23,7 @@ jobs:
       - run: npm run build
       - name: Show Chrome version
         run: google-chrome --version
-      - name: Local production-build WebMCP smoke in real Chrome
+      - name: Local production-build WebMCP and responsive smoke in real Chrome
         shell: bash
         run: |
           set -euo pipefail
@@ -36,7 +36,13 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:4173/ >/dev/null
           xvfb-run -a node scripts/chrome-webmcp-smoke.mjs
+          xvfb-run -a node scripts/responsive-home-smoke.mjs
       - name: Public GitHub Pages clean-browser WebMCP smoke
         env:
           FORGEMCP_TARGET_URL: https://terraforming-planet.github.io/ForgeMCP-Multi-Agent-Research---Game-Studio/#/dashboard
         run: xvfb-run -a node scripts/chrome-webmcp-smoke.mjs
+      - name: Public GitHub Pages responsive home smoke
+        if: github.event_name != 'pull_request'
+        env:
+          FORGEMCP_HOME_URL: https://terraforming-planet.github.io/ForgeMCP-Multi-Agent-Research---Game-Studio/#/
+        run: xvfb-run -a node scripts/responsive-home-smoke.mjs
