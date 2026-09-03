@@ -2,7 +2,7 @@ import { CUBE_PUBLIC_URL } from './integrations/cube/adapter'
 
 // Dedicated reviewer entry built by Cube as a second Vite HTML entry.
 // Using a distinct path avoids stale root-index cache while still loading the same public game runtime.
-export const CUBE_GUEST_REVISION = 'cdcac98ef4f527ae1f08c57ad4366d295ba8d3b1'
+export const CUBE_GUEST_REVISION = 'e022239d15379127c4cda45e4b581b33ad48201c'
 export const CUBE_GUEST_URL = `${CUBE_PUBLIC_URL}guest.html?rev=${CUBE_GUEST_REVISION}`
 
 export function applyReviewerCubeGuestEntry() {
