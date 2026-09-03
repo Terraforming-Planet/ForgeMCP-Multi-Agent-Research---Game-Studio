@@ -6,6 +6,7 @@ const targetUrl = process.env.FORGEMCP_HOME_URL || 'http://127.0.0.1:4173/#/'
 const chromeBin = process.env.CHROME_BIN || 'google-chrome'
 const debugPort = Number(process.env.CHROME_RESPONSIVE_DEBUG_PORT || 9333)
 const timeoutMs = Number(process.env.CHROME_SMOKE_TIMEOUT_MS || 30000)
+const cubePublicHost = 'teslaeco.github.io/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer'
 
 const viewports = [
   { name: 'desktop', width: 1440, height: 1000, scale: 1, mobile: false },
@@ -71,11 +72,15 @@ async function waitForHome(call, deadline) {
   let last
   while (Date.now() < deadline) {
     const evaluated = await call('Runtime.evaluate', {
-      expression: `({ readyState: document.readyState, hasHero: !!document.querySelector('.reviewer-hero') })`,
+      expression: `({
+        readyState: document.readyState,
+        hasHero: !!document.querySelector('.reviewer-hero'),
+        hasCubePublicPreview: !!document.querySelector('[data-cube-open-source-preview]')
+      })`,
       returnByValue: true,
     })
     last = evaluated.result?.value
-    if (['interactive', 'complete'].includes(last?.readyState) && last?.hasHero) return
+    if (['interactive', 'complete'].includes(last?.readyState) && last?.hasHero && last?.hasCubePublicPreview) return
     await sleep(200)
   }
   throw new Error(`Timed out waiting for reviewer home: ${JSON.stringify(last)}`)
@@ -128,6 +133,8 @@ try {
           const cube = document.querySelector('.reviewer-bottom-actions a.cube');
           const panels = [...document.querySelectorAll('.reviewer-live-panel')];
           const frames = [...document.querySelectorAll('.reviewer-frame iframe')];
+          const cubePreview = document.querySelector('[data-cube-open-source-preview]');
+          const cubePreviewImage = cubePreview?.querySelector('img');
           const rect = node => node ? node.getBoundingClientRect() : null;
           const visible = node => {
             if (!node) return false;
@@ -147,6 +154,10 @@ try {
             panelCount: panels.length,
             frameCount: frames.length,
             framesNonInteractive: frames.every(frame => getComputedStyle(frame).pointerEvents === 'none'),
+            cubePreviewVisible: visible(cubePreview),
+            cubePreviewHref: cubePreview?.getAttribute('href'),
+            cubePreviewAlt: cubePreviewImage?.getAttribute('alt'),
+            cubePreviewIsDataImage: String(cubePreviewImage?.getAttribute('src') || '').startsWith('data:image/jpeg;base64,'),
             terraRect: rect(terra),
             cubeRect: rect(cube),
           };
@@ -159,9 +170,14 @@ try {
       if (!result?.heroVisible) throw new Error(`${viewport.name}: hero not visible`)
       if (!result?.terraVisible || !result?.cubeVisible) throw new Error(`${viewport.name}: Terra/Cube hero entrances not visible`)
       if (!String(result.terraHref || '').includes('/labmcp')) throw new Error(`${viewport.name}: Terra entrance has wrong href: ${result.terraHref}`)
-      if (!String(result.cubeHref || '').includes('/game-studio')) throw new Error(`${viewport.name}: Cube entrance has wrong href: ${result.cubeHref}`)
-      if (result.panelCount !== 2 || result.frameCount !== 2) throw new Error(`${viewport.name}: expected two visual project cards`)
-      if (!result.framesNonInteractive) throw new Error(`${viewport.name}: embedded previews are still interactive`)
+      if (!String(result.cubeHref || '').includes(cubePublicHost)) throw new Error(`${viewport.name}: Cube entrance does not open the public game: ${result.cubeHref}`)
+      if (result.panelCount !== 2) throw new Error(`${viewport.name}: expected two visual project cards`)
+      if (result.frameCount !== 1) throw new Error(`${viewport.name}: expected only the Terra live iframe, got ${result.frameCount}`)
+      if (!result.framesNonInteractive) throw new Error(`${viewport.name}: Terra embedded preview is still interactive`)
+      if (!result.cubePreviewVisible) throw new Error(`${viewport.name}: static Cube board preview is not visible`)
+      if (!String(result.cubePreviewHref || '').includes(cubePublicHost)) throw new Error(`${viewport.name}: Cube preview has wrong target: ${result.cubePreviewHref}`)
+      if (!/Static preview of the Cube Chess 512 playable/i.test(String(result.cubePreviewAlt || ''))) throw new Error(`${viewport.name}: Cube preview is not explicitly labelled static`)
+      if (!result.cubePreviewIsDataImage) throw new Error(`${viewport.name}: Cube preview image was not embedded`)
       if (result.horizontalOverflow > 2) throw new Error(`${viewport.name}: horizontal overflow ${result.horizontalOverflow}px`)
 
       console.log(`RESPONSIVE_HOME_${viewport.name.toUpperCase()}_PASS`, JSON.stringify({
@@ -169,6 +185,7 @@ try {
         horizontalOverflow: result.horizontalOverflow,
         terraHref: result.terraHref,
         cubeHref: result.cubeHref,
+        cubePreviewHref: result.cubePreviewHref,
       }))
     }
 
