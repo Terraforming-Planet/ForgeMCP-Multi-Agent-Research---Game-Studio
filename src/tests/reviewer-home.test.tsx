@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import App from '../App'
 import { CUBE_PUBLIC_URL } from '../integrations/cube/adapter'
 import { TERRA_APP_URL } from '../integrations/terra/adapter'
+
+afterEach(cleanup)
 
 describe('reviewer home', () => {
   it('shows Terra and Cube together on the main page', () => {
