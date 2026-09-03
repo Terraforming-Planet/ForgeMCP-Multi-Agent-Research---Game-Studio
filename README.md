@@ -24,13 +24,28 @@ The generated hero, four-station panorama and Earth Guardian render are visibly 
 
 The browser registers real handlers using `document.modelContext.registerTool(...)`. Implemented tools:
 
-There are **50 registered tools** across system, Terra, Cube, visual QA, verification and commerce domains. The commerce additions are:
+There are **50 registered central tools** across system, Terra, Cube, visual QA, verification and commerce domains. The commerce additions are:
 
 `list_asset_station_presets`, `configure_3d_asset`, `generate_procedural_asset_preview`, `generate_procedural_asset_files`, `run_asset_qa`, `prepare_codex_asset_prompt`, `prepare_shopify_product_draft`, `create_shopify_test_cart`, `prepare_b2b_rfq`, `submit_b2b_rfq`.
 
-The remaining tools cover runtime status; place/AOI/station handling; official/public observation, imagery, DEM and hazard investigation; evidence verification; the pinned Cube benchmark and promotion gates; and reversible visual QA. `list_capabilities` returns the exact live inventory.
+The remaining tools cover runtime status; place/AOI/station handling; official/public observation, imagery, DEM and hazard investigation; evidence verification; the pinned Cube benchmark and promotion gates; and reversible visual QA. `list_capabilities` returns the exact live inventory. Playable Research Worlds also registers same-origin world/camera/runtime-generation tools inside that page.
 
 Unsupported browsers show `WEBMCP_UNAVAILABLE`; the dashboard itself still works. Mutating/promotion tools validate inputs, return structured status, and promotion/rollback require literal `humanApproved: true` plus applicable automated gates.
+
+## Chrome 149+ WebMCP verification
+
+The repository includes a real-browser smoke test in `scripts/chrome-webmcp-smoke.mjs` and `.github/workflows/chrome-webmcp-smoke.yml`. It launches **Google Chrome 149+** in a visible Xvfb session with WebMCP testing features enabled, opens the production build, waits for native `document.modelContext`, discovers at least 50 tools through `getTools()`, and executes:
+
+- `get_forgemcp_status`
+- `set_area_of_interest`
+- `start_selfplay`
+- `generate_procedural_asset_files`
+- an invalid `search_location` call that must fail closed
+- a `promote_ai_candidate` call without literal human approval that must fail closed
+
+The workflow runs against both the local production build and the public GitHub Pages URL. This is intentionally a **real Chromium API test**, not a mocked `document.modelContext` unit test.
+
+Chrome's documented manual path remains: Chrome 149+ → `chrome://flags/#enable-webmcp-testing` → Enabled → relaunch.
 
 ## Truth and provenance
 
@@ -40,6 +55,8 @@ Unsupported browsers show `WEBMCP_UNAVAILABLE`; the dashboard itself still works
 Existing [PR #101](https://github.com/teslaeco/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/pull/101)'s 100K virtual policy-tuning games and [PR #102](https://github.com/teslaeco/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/pull/102)'s 3K legal policy rollouts are historical upstream work, not neural-network training and not ForgeMCP execution. ForgeMCP reports only games executed in the current run. The external [visual-compliance dataset](https://huggingface.co/datasets/8Planetterraforming/ChessArena512AI-Visual-Compliance-Dataset) is provenance only; Forge does not claim its recorded ResNet50 weights are loaded in the live Cube engine.
 
 The owner-authorized private Chess Arena workspace is used only as design/training provenance. Its published diagnostic smoke evidence is 300 curriculum games plus three legal rollouts; no private source, model checkpoint or private GLB is shipped in this public app. A larger 100K + 3K run and visual-training handoff are not claimed complete.
+
+Third-party software/data/asset boundaries and attribution notes are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md). Provider names identify sources or compatibility targets and do not imply endorsement.
 
 ## Run and verify
 
@@ -54,16 +71,18 @@ npm run dev
 
 Open `/#/labmcp` for the satellite/hazard workspace, `/#/game-studio` for the four-station Game Studio and Basic Game Generator, `/#/cube-premium` for the local 30-day Cube-only product-flow test, `/#/shop-lab` for the local 3D/texture + Shopify/B2B test, or `/#/dashboard` for the lower-level control center. Vite uses a relative base and a hash router, and the Pages workflow publishes the static `dist/` build after changes reach `main`.
 
+For Chrome-native WebMCP verification, use the documented manual flag or run the repository's `Chrome WebMCP smoke` GitHub Actions workflow. See [docs/JUDGE_TESTING.md](docs/JUDGE_TESTING.md) for the judge path and English translations of any remaining Polish UI labels.
+
 For the first deployment only, the repository owner must open **Settings → Pages**, set **Source** to **GitHub Actions**, and save. GitHub's repository `GITHUB_TOKEN` can deploy an enabled site but could not create the first Pages site in this repository; this was the cause of the `Get Pages site: Not Found / Resource not accessible by integration` failure. After saving the setting, rerun the failed Pages workflow.
 
 ## Trust boundaries and limitations
 
 Public network access and an exact-origin CORS allowlist are required for live Terra calls. The UI therefore also shows a pinned TEST 001 source pair before a live run, without substituting it into another AOI. The public Terra Worker may invoke remote AI only for the explicit `ai_visual_image_count`; annual gallery slots are never silently labelled as model-inspected. EONET events provide contextual observations, not causes; DEM values are raster samples, not surveyed heights. No alert is sent and no physical intervention is ordered. `VERIFIED_FINDING` is locked behind a separate, human-approved field record with an independent expert, measurements, method and source. Candidate Cube state remains a browser-memory demo state, not a production model registry. Shopify is not connected and Shopify B2B is not represented as a manufacturer search engine.
 
-See [LabMCP hazard investigation](docs/LABMCP_HAZARD_INVESTIGATION.md), [LabMCP TEST 001](docs/LABMCP_TEST_001.md), [3D and commerce lab](docs/PRODUCT_LAB.md), [premium asset-pack intake](docs/PREMIUM_ASSET_PACK.md), [judge testing](docs/JUDGE_TESTING.md), [demo script](docs/DEMO_SCRIPT.md), [limitations](docs/LIMITATIONS.md), [security](docs/SECURITY.md), and [challenge changes](docs/CHALLENGE_WORK.md).
+See [LabMCP hazard investigation](docs/LABMCP_HAZARD_INVESTIGATION.md), [LabMCP TEST 001](docs/LABMCP_TEST_001.md), [3D and commerce lab](docs/PRODUCT_LAB.md), [premium asset-pack intake](docs/PREMIUM_ASSET_PACK.md), [judge testing](docs/JUDGE_TESTING.md), [demo script](docs/DEMO_SCRIPT.md), [limitations](docs/LIMITATIONS.md), [security](docs/SECURITY.md), [third-party notices](THIRD_PARTY_NOTICES.md), and [challenge changes](docs/CHALLENGE_WORK.md).
 
 ## Before vs challenge work
 
-Terra and Cube existed independently before the challenge. ForgeMCP added the browser coordinator, WebMCP execution contracts, public-data adapters, pinned engine adapter and executed benchmark, verification/event timeline, four-station interface, cosmic hub, local procedural glTF/PNG exporter, guarded commerce drafts, approval gates, and tests. Agents coordinate operations; they never become the authority.
+Terra and Cube existed independently before the challenge. ForgeMCP added the browser coordinator, WebMCP execution contracts, public-data adapters, pinned engine adapter and executed benchmark, verification/event timeline, four-station interface, cosmic hub, local procedural glTF/PNG exporter, guarded commerce drafts, approval gates, and tests. The dated evidence table in [docs/CHALLENGE_WORK.md](docs/CHALLENGE_WORK.md) separates this work from the upstream pre-challenge systems. Agents coordinate operations; they never become the authority.
 
 MIT licensed.
