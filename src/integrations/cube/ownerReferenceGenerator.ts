@@ -134,7 +134,7 @@ function rebuildGeometry(bundle: PremiumCubeAssetBundle, widthDepthScale: number
   gltf.extras = {
     ...(gltf.extras ?? {}),
     geometryFingerprint: fingerprint,
-    ownerReferenceManifestSha256,
+    ownerReferenceManifestSha256: ownerManifestSha256,
     ownerReferenceWidthDepthScale: Number(widthDepthScale.toFixed(5)),
     ownerReferenceCalibration: 'HEIGHT_WIDTH_ASPECT_WITH_ONE_CELL_SAFETY_CLAMP',
   }
