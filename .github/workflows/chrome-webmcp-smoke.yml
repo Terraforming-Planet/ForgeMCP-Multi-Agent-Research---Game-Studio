@@ -23,6 +23,16 @@ jobs:
       - run: npm run build
       - name: Show Chrome version
         run: google-chrome --version
+      - name: Live Cube direct-guest entry smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          CUBE_URL='https://teslaeco.github.io/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/?guest=1'
+          DOM="$(google-chrome --headless=new --no-sandbox --disable-gpu --virtual-time-budget=5000 --dump-dom "$CUBE_URL" 2>/tmp/cube-guest-chrome.log)"
+          printf '%s' "$DOM" | grep -q 'data-auth-mode="guest"'
+          printf '%s' "$DOM" | grep -q 'auth-gate-hidden'
+          printf '%s' "$DOM" | grep -q '<canvas'
+          echo 'CUBE_PUBLIC_GUEST_SMOKE_PASS'
       - name: Local production-build WebMCP and responsive smoke in real Chrome
         shell: bash
         run: |
