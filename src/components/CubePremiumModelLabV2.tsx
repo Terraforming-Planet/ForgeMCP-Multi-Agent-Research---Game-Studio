@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { OWNER_CUBE_PROMPTS } from '../data/ownerCubePipeline'
 import { createAssetSpecification, type AssetConfiguration, type PiecePreset } from '../integrations/commerce/productLab'
+import {
+  buildOwnerReferenceProfile,
+  calibrateOwnerReferenceConfiguration,
+  type OwnerAssetInput,
+  type OwnerReferenceProfile,
+} from '../integrations/cube/ownerAssetIntake'
+import { applyOwnerReferenceToPremiumBundle, type OwnerReferenceGenerationResult } from '../integrations/cube/ownerReferenceGenerator'
 import { generatePremiumCubeAssetBundle, type PremiumCubeAssetBundle } from '../integrations/cube/premiumGeometryV2'
 import { ProceduralAssetViewer } from './ProceduralAssetViewer'
 import { StatusBadge } from './StatusBadge'
@@ -55,9 +62,9 @@ function download(filename: string, content: string | Uint8Array, mimeType: stri
   URL.revokeObjectURL(url)
 }
 
-function makeManifest(bundle: PremiumCubeAssetBundle) {
+function makeManifest(bundle: PremiumCubeAssetBundle, profile: OwnerReferenceProfile | null, applied: OwnerReferenceGenerationResult['reference'] | null) {
   return {
-    schema: 'forgemcp.cube-premium-model-v2.v1',
+    schema: profile ? 'forgemcp.cube-premium-owner-reference-v3.v1' : 'forgemcp.cube-premium-model-v2.v1',
     trainingProfile: bundle.trainingProfile,
     pieceRole: bundle.pieceRole,
     specificationId: bundle.specificationId,
@@ -68,11 +75,24 @@ function makeManifest(bundle: PremiumCubeAssetBundle) {
       orm: bundle.pbrMaps.orm.fingerprint,
       emissive: bundle.pbrMaps.emissive.fingerprint,
     },
+    ownerReferenceProfile: profile ? {
+      status: profile.status,
+      manifestSha256: profile.manifestSha256,
+      calibration: profile.calibration,
+      applied,
+    } : null,
     metrics: bundle.metrics,
     semanticParts: bundle.semanticParts,
     qa: bundle.qa,
     truthBoundary: bundle.truthBoundary,
   }
+}
+
+function ownerStatus(profile: OwnerReferenceProfile | null) {
+  if (!profile) return 'NO OWNER FILES'
+  if (profile.status === 'OWNER_REFERENCE_READY') return 'OWNER REFERENCE READY'
+  if (profile.status === 'OWNER_REFERENCE_PARTIAL') return 'OWNER FILES PARTIAL'
+  return 'NO SUPPORTED REFERENCE'
 }
 
 export function CubePremiumModelLabV2() {
@@ -83,10 +103,24 @@ export function CubePremiumModelLabV2() {
   const [secondaryColor, setSecondaryColor] = useState(initialPiece.secondary)
   const [ledIntensity, setLedIntensity] = useState(58)
   const [prompt, setPrompt] = useState(initialPrompt)
+  const [ownerInputs, setOwnerInputs] = useState<OwnerAssetInput[]>([])
+  const [ownerProfile, setOwnerProfile] = useState<OwnerReferenceProfile | null>(null)
+  const [ownerApplied, setOwnerApplied] = useState<OwnerReferenceGenerationResult['reference'] | null>(null)
+  const [ownerMessage, setOwnerMessage] = useState('Paczka SwissTransfer nie jest pobierana automatycznie. Wskaż lokalne pliki właściciela, aby użyć ich jako prywatnego profilu odniesienia.')
   const [bundle, setBundle] = useState(() => generatePremiumCubeAssetBundle(createAssetSpecification(makeConfiguration(initialPiece.id, initialPiece.primary, initialPiece.secondary, 58, initialPrompt))))
   const [message, setMessage] = useState('Koń Premium V2 wygenerowany z geometrią i mapami PBR wynikającymi z kontraktu treningowego właściciela.')
 
-  const specification = useMemo(() => createAssetSpecification(makeConfiguration(pieceId, primaryColor, secondaryColor, ledIntensity, prompt)), [pieceId, primaryColor, secondaryColor, ledIntensity, prompt])
+  const baseConfiguration = useMemo(
+    () => makeConfiguration(pieceId, primaryColor, secondaryColor, ledIntensity, prompt),
+    [pieceId, primaryColor, secondaryColor, ledIntensity, prompt],
+  )
+  const calibratedConfiguration = useMemo(
+    () => ownerProfile && ownerProfile.status !== 'NO_SUPPORTED_REFERENCE'
+      ? calibrateOwnerReferenceConfiguration(baseConfiguration, ownerProfile, pieceId)
+      : baseConfiguration,
+    [baseConfiguration, ownerProfile, pieceId],
+  )
+  const specification = useMemo(() => createAssetSpecification(calibratedConfiguration), [calibratedConfiguration])
   const current = specification.id === bundle.specificationId
 
   function selectPiece(id: PieceId) {
@@ -95,25 +129,90 @@ export function CubePremiumModelLabV2() {
     setPrimaryColor(piece.primary)
     setSecondaryColor(piece.secondary)
     setPrompt(OWNER_CUBE_PROMPTS.find(item => item.id === id)?.prompt ?? `Create a premium ${id}.`)
-    setMessage(`${piece.label} wybrany. Naciśnij generowanie, aby przebudować geometrię V2 i komplet PBR.`)
+    setMessage(`${piece.label} wybrany. Naciśnij generowanie, aby przebudować geometrię V2 i komplet PBR${ownerProfile ? ' z aktywnym profilem właściciela' : ''}.`)
+  }
+
+  async function loadOwnerFiles(files: FileList | null) {
+    const list = Array.from(files ?? [])
+    if (!list.length) {
+      setOwnerInputs([])
+      setOwnerProfile(null)
+      setOwnerApplied(null)
+      setOwnerMessage('Nie wybrano plików. Generator wrócił do bezpiecznego Premium V2 fallback.')
+      return
+    }
+    try {
+      setOwnerMessage(`Analizuję lokalnie ${list.length} plików: model, bounds, topologię, mapy PBR i SHA-256…`)
+      const inputs: OwnerAssetInput[] = await Promise.all(list.map(async file => ({
+        name: file.name,
+        mimeType: file.type || (file.name.toLowerCase().endsWith('.png') ? 'image/png' : 'application/octet-stream'),
+        bytes: new Uint8Array(await file.arrayBuffer()),
+      })))
+      const profile = await buildOwnerReferenceProfile(inputs)
+      setOwnerInputs(inputs)
+      setOwnerProfile(profile)
+      setOwnerApplied(null)
+      setOwnerMessage(`Profil ${profile.status}: ${profile.models.length} modeli, ${profile.textures.length} tekstur, PBR ${profile.calibration.pbrCoverage}/4, target ≥ ${profile.calibration.targetTriangleFloor.toLocaleString('pl-PL')} trójkątów. Manifest ${profile.manifestSha256.slice(0, 16)}…`)
+    } catch (error) {
+      setOwnerInputs([])
+      setOwnerProfile(null)
+      setOwnerApplied(null)
+      setOwnerMessage(`Nie udało się przeanalizować lokalnych plików: ${error instanceof Error ? error.message : 'unknown error'}. Nic nie zostało wysłane do sieci.`)
+    }
   }
 
   function regenerate() {
-    const next = generatePremiumCubeAssetBundle(specification)
+    let next = generatePremiumCubeAssetBundle(specification)
+    let applied: OwnerReferenceGenerationResult['reference'] | null = null
+    if (ownerProfile && ownerInputs.length && ownerProfile.status !== 'NO_SUPPORTED_REFERENCE') {
+      const result = applyOwnerReferenceToPremiumBundle(next, ownerInputs, ownerProfile, pieceId)
+      next = result.bundle
+      applied = result.reference
+    }
+    setOwnerApplied(applied)
     setBundle(next)
-    setMessage(`Wygenerowano ${next.preview.label}: ${next.metrics.vertices.toLocaleString('pl-PL')} wierzchołków, ${next.metrics.triangles.toLocaleString('pl-PL')} trójkątów, 4 mapy PBR, ${next.semanticParts.length} części semantycznych. QA: ${next.qa.result}.`)
+    const ownerText = applied
+      ? ` Owner reference: ${applied.modelName ?? 'texture-only'}, proporcje x/z ×${applied.widthDepthScale.toFixed(3)}, mapy właściciela ${applied.textureOverrides.length}.`
+      : ''
+    setMessage(`Wygenerowano ${next.preview.label}: ${next.metrics.vertices.toLocaleString('pl-PL')} wierzchołków, ${next.metrics.triangles.toLocaleString('pl-PL')} trójkątów, 4 mapy PBR, ${next.semanticParts.length} części semantycznych. QA: ${next.qa.result}.${ownerText}`)
   }
 
   return <section className="card cube-premium-model-v2" aria-label="Cube Premium training-driven 3D Modeler V2">
     <div className="section-heading">
       <div>
-        <p className="eyebrow">CHESSARENA TRAINING RULES → REAL GEOMETRY + PBR</p>
-        <h2>Modeler 3D figurek Premium V2</h2>
+        <p className="eyebrow">CHESSARENA TRAINING RULES + OWNER REFERENCE → REAL GEOMETRY + PBR</p>
+        <h2>Modeler 3D figurek Premium V2 + Owner Reference V3</h2>
       </div>
-      <StatusBadge value={current ? 'V2 PBR READY' : 'REGENERATE'} />
+      <StatusBadge value={current ? 'V2/V3 READY' : 'REGENERATE'} />
     </div>
-    <p>To nie jest już tylko lepszy prompt. Ten wariant implementuje w kodzie zasady z prywatnego, zatwierdzonego przez właściciela programu Premium Full Game V3: rozpoznawalność figur, normalizację podstawy/skali, więcej geometrii oraz prawdziwy zestaw PBR <b>BaseColor + Normal + ORM + Emissive</b>.</p>
-    <p className="lab-note"><b>Granica prawdy:</b> korzystamy z reguł i metodologii treningowej, ale nie twierdzimy, że w przeglądarce działa wytrenowany generatywny checkpoint 3D. Model V2 jest deterministycznie generowany z tych reguł i przechodzi jawne QA.</p>
+    <p>Ten wariant implementuje w kodzie zasady z prywatnego, zatwierdzonego przez właściciela programu Premium Full Game V3: rozpoznawalność figur, normalizację podstawy/skali, gęstszą geometrię i zestaw PBR <b>BaseColor + Normal + ORM + Emissive</b>. Po wskazaniu Twoich lokalnych modeli generator dodatkowo kalibruje proporcje do realnego GLB/glTF/OBJ oraz może osadzić właścicielskie mapy PNG bez publikowania źródeł.</p>
+    <p className="lab-note"><b>Granica prawdy:</b> link SwissTransfer nadal nie jest dostępny z serwera ForgeMCP. Import poniżej działa na plikach wskazanych przez właściciela w przeglądarce i nie wysyła ich do GitHuba ani API. Nie twierdzimy też, że działa generatywny checkpoint 3D — V2/V3 jest deterministycznym modelerem sterowanym kontraktem treningowym i profilem referencyjnym.</p>
+
+    <div className="card" aria-label="Owner asset intake">
+      <div className="section-heading">
+        <div><p className="eyebrow">OWNER ASSET INTAKE · LOCAL ONLY</p><h3>Dodaj swoje modele 3D i tekstury jako aktywny profil odniesienia</h3></div>
+        <StatusBadge value={ownerStatus(ownerProfile)} />
+      </div>
+      <label>Pliki właściciela: GLB, glTF, OBJ, FBX/Blend do inwentaryzacji oraz PNG/JPG/WebP/TGA tekstur
+        <input
+          aria-label="Owner model and texture files"
+          type="file"
+          multiple
+          accept=".glb,.gltf,.obj,.fbx,.blend,.png,.jpg,.jpeg,.webp,.tga,image/png,image/jpeg,image/webp"
+          onChange={event => void loadOwnerFiles(event.currentTarget.files)}
+        />
+      </label>
+      <p role="status" className="lab-note">{ownerMessage}</p>
+      {ownerProfile ? <div className="lab-metrics">
+        <article><b>{ownerProfile.models.length}</b><span>modeli</span></article>
+        <article><b>{ownerProfile.textures.length}</b><span>tekstur</span></article>
+        <article><b>{ownerProfile.calibration.sourceTriangles?.toLocaleString('pl-PL') ?? '—'}</b><span>trójkątów referencji</span></article>
+        <article><b>{ownerProfile.calibration.pbrCoverage}/4</b><span>pokrycie PBR</span></article>
+      </div> : null}
+      {ownerProfile?.models.length ? <details><summary>Modele rozpoznane w paczce</summary><ul>{ownerProfile.models.map(model => <li key={`${model.sha256}-${model.name}`}><b>{model.name}</b> · {model.format.toUpperCase()} · rola {model.inferredRole} · {model.vertices?.toLocaleString('pl-PL') ?? 'n/a'} vertices · {model.triangles?.toLocaleString('pl-PL') ?? 'n/a'} triangles · {model.parseStatus}</li>)}</ul></details> : null}
+      {ownerProfile?.textures.length ? <details><summary>Tekstury rozpoznane w paczce</summary><ul>{ownerProfile.textures.map(texture => <li key={`${texture.sha256}-${texture.name}`}><b>{texture.name}</b> · {texture.role} · {texture.inferredPieceRole} · {texture.browserEmbeddable ? 'browser-ready' : 'inventory-only'}</li>)}</ul></details> : null}
+      {ownerApplied ? <p className="lab-note"><b>Zastosowano:</b> {ownerApplied.modelName ?? 'profil tekstur'} · kalibracja geometrii {ownerApplied.geometryCalibrated ? 'TAK' : 'NIE'} · x/z ×{ownerApplied.widthDepthScale.toFixed(3)} · mapy właściciela: {ownerApplied.textureOverrides.map(item => `${item.role}:${item.filename}`).join(', ') || 'brak kompatybilnych PNG'}. {ownerApplied.warnings.join(' ')}</p> : null}
+    </div>
 
     <div className="toolbar" aria-label="Wybór figury Premium V2">
       {PIECES.map(piece => <button type="button" key={piece.id} aria-pressed={pieceId === piece.id} onClick={() => selectPiece(piece.id)}>{piece.label}</button>)}
@@ -144,19 +243,20 @@ export function CubePremiumModelLabV2() {
           <label>Kolor LED / emissive <input type="color" value={secondaryColor} onChange={event => setSecondaryColor(event.target.value)} /></label>
         </div>
         <label>Intensywność LED: {ledIntensity}% <input type="range" min="0" max="100" value={ledIntensity} onChange={event => setLedIntensity(Number(event.target.value))} /></label>
-        <button type="button" onClick={regenerate}>Generuj Premium V2 + 4 mapy PBR</button>
+        <button type="button" onClick={regenerate}>{ownerProfile ? 'Generuj V3 na podstawie modeli właściciela' : 'Generuj Premium V2 + 4 mapy PBR'}</button>
         <p role="status" className="lab-note">{message}</p>
-        <h3>Co poprawiono względem starego generatora</h3>
+        <h3>Co poprawia V3 po dodaniu Twoich plików</h3>
         <ul>
-          <li>profile obrotowe Staunton zamiast korpusu z kilku prostych cylindrów;</li>
-          <li>48–52 segmenty na bryłach obrotowych i gęstsze głowy/krzywizny;</li>
-          <li>koń: pierś + ciągła masa szyi S, osobny czerep, policzek, pysk, szczęka, oczy, nozdrza, dwa mniejsze uszy i grzywa podążająca za karkiem;</li>
-          <li>wieża: osiem czytelnych blanków; hetman: głęboka ośmiopunktowa korona; goniec: rozdzielona mitra;</li>
-          <li>osobna Normal mapa, packed ORM i Emissive zamiast samego BaseColor ze stałym roughness/metallic.</li>
+          <li>czyta realne bounds i proporcje referencyjnego GLB/glTF/OBJ zamiast zgadywać rozmiar;</li>
+          <li>dopasowuje skalę docelową i szerokość/głębokość w bezpiecznym zakresie ±18%, żeby nadal zmieścić figurę na polu;</li>
+          <li>porównuje gęstość referencji z limitem runtime 30 000 trójkątów i zapisuje detail target w specyfikacji;</li>
+          <li>rozpoznaje BaseColor, Normal, ORM i Emissive po plikach oraz materiale glTF;</li>
+          <li>kompatybilne mapy PNG właściciela są osadzane bezpośrednio w eksportowanym glTF;</li>
+          <li>każdy lokalny plik dostaje SHA-256, a cały zestaw wspólny manifest SHA-256.</li>
         </ul>
         <div className="toolbar">
-          <button type="button" onClick={() => download(bundle.model.filename, bundle.model.content, bundle.model.mimeType)}>Pobierz model Premium V2 .gltf</button>
-          <button type="button" onClick={() => download(`${bundle.specificationId}-premium-v2-manifest.json`, JSON.stringify(makeManifest(bundle), null, 2), 'application/json')}>Pobierz manifest V2</button>
+          <button type="button" onClick={() => download(bundle.model.filename, bundle.model.content, bundle.model.mimeType)}>Pobierz model Premium V2/V3 .gltf</button>
+          <button type="button" onClick={() => download(`${bundle.specificationId}-premium-v3-manifest.json`, JSON.stringify(makeManifest(bundle, ownerProfile, ownerApplied), null, 2), 'application/json')}>Pobierz manifest V3</button>
         </div>
       </div>
     </div>
