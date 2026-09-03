@@ -16,6 +16,8 @@ import {
   type ProductTestTrack,
 } from '../integrations/commerce/productLab'
 import { generateProceduralAssetBundle, proceduralAssetManifest, type ProceduralAssetBundle } from '../integrations/commerce/proceduralAssets'
+import { repairEarthGuardianBundle } from '../integrations/terra/earthGuardianUpgrade'
+import { repairTerraMaterials } from '../integrations/terra/terraMaterialRepair'
 import { StationConceptVisual } from './StationConceptVisual'
 import { StatusBadge } from './StatusBadge'
 import { ProceduralAssetViewer } from './ProceduralAssetViewer'
@@ -134,9 +136,14 @@ export function ProductLab() {
   const codexCommand = track === 'terra-station' ? CODEX_STATION_COMMAND : CODEX_PIECE_COMMAND
 
   function generateAssetFiles() {
-    const generated = generateProceduralAssetBundle(specification)
+    const raw = generateProceduralAssetBundle(specification)
+    const generated = raw.preview.preset === 'earth-guardian'
+      ? repairEarthGuardianBundle(raw)
+      : raw.preview.preset === 'research-station'
+        ? repairTerraMaterials(raw, stationId)
+        : raw
     setAssetBundle(generated)
-    setGenerationMessage(`Generated ${generated.preview.label}: ${generated.metrics.vertices} vertices and ${generated.metrics.triangles} triangles. The rotating preview and downloads use the same geometry.`)
+    setGenerationMessage(`Generated ${generated.preview.label}: ${generated.metrics.vertices} vertices and ${generated.metrics.triangles} triangles. Semantic materials are visible in the rotating preview; Earth Guardian and Terra station glTF exports include repaired PBR material zones.`)
   }
 
   function applyExample(example: GeneratorExample) {
@@ -290,7 +297,7 @@ export function ProductLab() {
               ? <img src={earthFigurineConcept} alt="AI-generated Earth figurine concept on a black-and-white board with green and blue LEDs; not a manufactured product or 3D model file" />
               : <StationConceptVisual station={station} />}
           <div className="preview-swatches"><i /><i /><span>{material}</span></div>
-          <p className="lab-note"><b>{assetBundle ? 'Live generated geometry:' : 'Concept reference:'}</b> {assetBundle ? 'the rotating canvas renders the same vertex and index arrays embedded in the downloadable glTF; the PNG below is the exported texture atlas and the canvas remains a geometry/material-zone preview.' : 'visual direction only; generate below to create and see a real low-poly prototype.'} It is not a sculpted production asset or manufacturing proof.</p>
+          <p className="lab-note"><b>{assetBundle ? 'Live generated geometry:' : 'Concept reference:'}</b> {assetBundle ? 'the rotating canvas renders the same vertex and index arrays embedded in the downloadable glTF. The semantic preview now separates Earth, face, metal, ice, water and terrain zones; repaired PBR materials are embedded in Earth Guardian and Terra station glTF exports.' : 'visual direction only; generate below to create and see a real low-poly prototype.'} It is not a sculpted production asset or manufacturing proof.</p>
           <p className="generation-status" aria-live="polite">{generationMessage}</p>
           <div className="asset-export-panel">
             <button type="button" className="lab-primary" onClick={generateAssetFiles}>Generate and show 3D model + texture</button>
