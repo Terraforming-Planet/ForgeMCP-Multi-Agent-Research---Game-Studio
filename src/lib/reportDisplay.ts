@@ -20,7 +20,13 @@ function scaleWmsUrl(url: URL, maximumPixels: number) {
   return changed
 }
 
-export function mobilePreviewUrl(value: string, maximumPixels = 640) {
+/**
+ * Keep browser previews reasonably bounded while preserving enough raster detail
+ * for terrain/channel inspection on modern desktop and high-density mobile screens.
+ * This only changes the requested display raster dimensions of the same official
+ * WMS product. It never creates spatial detail beyond the sensor/source product.
+ */
+export function mobilePreviewUrl(value: string, maximumPixels = 1280) {
   try {
     const url = new URL(value)
     if (scaleWmsUrl(url, maximumPixels)) return url.toString()
