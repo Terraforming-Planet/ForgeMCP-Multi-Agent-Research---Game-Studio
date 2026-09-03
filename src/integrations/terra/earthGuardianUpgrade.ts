@@ -1,4 +1,5 @@
 import type { ProceduralAssetBundle, SemanticPart } from '../commerce/proceduralAssets'
+import { repairTerraMaterials } from './terraMaterialRepair'
 
 const GLOBE_VERTICES = 693
 const EYE_VERTICES = 330
@@ -54,5 +55,47 @@ export function upgradeEarthGuardianSemantics(bundle: ProceduralAssetBundle): Pr
     ...bundle,
     semanticParts,
     truthBoundary: `${bundle.truthBoundary} Earth Guardian face semantics are split so eye and pupil materials remain distinct from the generated Earth visualization texture.`,
+  }
+}
+
+export function repairEarthGuardianBundle(bundle: ProceduralAssetBundle): ProceduralAssetBundle {
+  const upgraded = upgradeEarthGuardianSemantics(bundle)
+  if (upgraded.preview.preset !== 'earth-guardian') return upgraded
+  const repaired = repairTerraMaterials(upgraded, 'earth-guardian')
+  const gltf = JSON.parse(repaired.model.content) as {
+    materials?: Array<Record<string, unknown>>
+    meshes?: Array<{ primitives?: Array<{ material?: number; extras?: { semanticPart?: string } }> }>
+  }
+
+  for (const primitive of gltf.meshes?.[0]?.primitives ?? []) {
+    const materialIndex = primitive.material
+    if (materialIndex === undefined || !gltf.materials?.[materialIndex]) continue
+    const semanticPart = primitive.extras?.semanticPart
+    if (semanticPart === 'guardian-eye-whites') {
+      gltf.materials[materialIndex] = {
+        name: 'guardian-eye-white',
+        pbrMetallicRoughness: {
+          baseColorFactor: [0.96, 0.99, 1, 1],
+          metallicFactor: 0,
+          roughnessFactor: 0.38,
+        },
+      }
+    }
+    if (semanticPart === 'guardian-pupils') {
+      gltf.materials[materialIndex] = {
+        name: 'guardian-pupil-dark',
+        pbrMetallicRoughness: {
+          baseColorFactor: [0.015, 0.035, 0.055, 1],
+          metallicFactor: 0.08,
+          roughnessFactor: 0.28,
+        },
+      }
+    }
+  }
+
+  return {
+    ...repaired,
+    model: { ...repaired.model, content: JSON.stringify(gltf, null, 2) },
+    truthBoundary: `${repaired.truthBoundary} Eye whites and pupils use dedicated non-Earth PBR materials.`,
   }
 }
