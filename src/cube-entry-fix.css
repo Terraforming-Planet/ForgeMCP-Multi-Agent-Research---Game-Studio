@@ -1,0 +1,21 @@
+/* Final reviewer hotfix: show a real captured Cube Chess board instead of the auth gate.
+   The preview is visual only; primary Cube links are redirected to the public open-source game in main.tsx. */
+.reviewer-live-panel--cube .reviewer-frame {
+  background:
+    linear-gradient(0deg, rgba(2, 7, 13, .12), transparent 28%),
+    url('https://raw.githubusercontent.com/teslaeco/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/main/docs/audits/screenshots/mobile-game.png') center / cover no-repeat;
+}
+
+.reviewer-live-panel--cube .reviewer-frame iframe {
+  visibility: hidden;
+}
+
+@media (min-width: 721px) {
+  .reviewer-live-panel--cube .reviewer-frame {
+    background-image:
+      linear-gradient(0deg, rgba(2, 7, 13, .12), transparent 28%),
+      url('https://raw.githubusercontent.com/teslaeco/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/main/docs/audits/screenshots/desktop-game.png');
+    background-size: cover;
+    background-position: center;
+  }
+}
