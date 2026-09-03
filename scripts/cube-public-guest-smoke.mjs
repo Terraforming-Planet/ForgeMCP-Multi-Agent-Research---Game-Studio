@@ -2,7 +2,8 @@ import { execFileSync, spawn } from 'node:child_process'
 import process from 'node:process'
 import { setTimeout as sleep } from 'node:timers/promises'
 
-const targetUrl = process.env.CUBE_GUEST_URL || 'https://teslaeco.github.io/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/?guest=1'
+const cubeRevision = '82e68f46897c6536627f9669d6e05ead5596f5a7'
+const targetUrl = process.env.CUBE_GUEST_URL || `https://teslaeco.github.io/Cube-Chess-512-AI-Open-Source-3D-Chess-Engine-Autonomous-AI-Game-Developer/?guest=1&rev=${cubeRevision}`
 const chromeBin = process.env.CHROME_BIN || 'google-chrome'
 const debugPort = Number(process.env.CUBE_GUEST_DEBUG_PORT || 9444)
 const timeoutMs = Number(process.env.CUBE_GUEST_TIMEOUT_MS || 30000)
@@ -56,7 +57,7 @@ async function connectCdp(webSocketDebuggerUrl) {
 }
 
 const args = [
-  '--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-dev-shm-usage','--disable-gpu','--no-sandbox',
+  '--no-first-run','--no-default-browser-check','--disable-background-networking','--disable-component-update','--disable-dev-shm-usage','--disable-gpu','--no-sandbox','--disable-cache',
   `--remote-debugging-port=${debugPort}`,
   `--user-data-dir=/tmp/cube-public-guest-${process.pid}`,
   '--window-size=1280,900',
@@ -66,6 +67,7 @@ const args = [
 let chrome
 try {
   console.log(`Cube guest smoke Chrome: ${chromeVersion()}`)
+  console.log(`Cube guest target: ${targetUrl}`)
   chrome = spawn(chromeBin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
   const deadline = Date.now() + timeoutMs
   const pages = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, deadline)
@@ -75,6 +77,8 @@ try {
   try {
     await call('Page.enable')
     await call('Runtime.enable')
+    await call('Network.enable')
+    await call('Network.setCacheDisabled', { cacheDisabled: true })
     const navigation = await call('Page.navigate', { url: targetUrl })
     if (navigation.errorText) throw new Error(`Navigation failed: ${navigation.errorText}`)
 
@@ -84,9 +88,13 @@ try {
         expression: `(() => {
           const app = document.querySelector('#app');
           const gate = document.querySelector('.auth-gate');
+          let storedGuest = null;
+          try { storedGuest = JSON.parse(sessionStorage.getItem('cubeChessIdentity') || 'null'); } catch {}
           return {
             href: location.href,
             readyState: document.readyState,
+            directGuestMarker: document.documentElement.dataset.directGuest || null,
+            storedGuestMode: storedGuest?.mode || null,
             authMode: app?.dataset?.authMode || null,
             playerId: app?.dataset?.playerId || null,
             gateHidden: !!gate && (gate.classList.contains('auth-gate-hidden') || gate.getAttribute('aria-hidden') === 'true'),
@@ -100,10 +108,11 @@ try {
       await sleep(250)
     }
 
+    if (result?.directGuestMarker !== 'true') throw new Error(`Fresh deployed index guest marker missing: ${JSON.stringify(result)}`)
+    if (result?.storedGuestMode !== 'guest') throw new Error(`Guest identity was not seeded before startup: ${JSON.stringify(result)}`)
     if (result?.authMode !== 'guest') throw new Error(`Expected guest auth mode: ${JSON.stringify(result)}`)
     if (!result?.gateHidden) throw new Error(`Auth provider gate is still visible: ${JSON.stringify(result)}`)
     if (!result?.appVisible) throw new Error(`Cube application is not visible: ${JSON.stringify(result)}`)
-    if (!String(result?.href || '').includes('guest=1')) throw new Error(`Guest flag missing from live URL: ${JSON.stringify(result)}`)
     console.log('CUBE_PUBLIC_GUEST_SMOKE_PASS')
     console.log(JSON.stringify(result, null, 2))
   } finally { socket.close() }
