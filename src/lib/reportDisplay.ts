@@ -20,7 +20,7 @@ function scaleWmsUrl(url: URL, maximumPixels: number) {
   return changed
 }
 
-export function mobilePreviewUrl(value: string, maximumPixels = 640) {
+export function mobilePreviewUrl(value: string, maximumPixels = 1024) {
   try {
     const url = new URL(value)
     if (scaleWmsUrl(url, maximumPixels)) return url.toString()
