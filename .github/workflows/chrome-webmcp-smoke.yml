@@ -1,0 +1,42 @@
+name: Chrome WebMCP smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chrome-webmcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.2
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Show Chrome version
+        run: google-chrome --version
+      - name: Local production-build WebMCP smoke in real Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/forgemcp-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            if curl --fail --silent http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 0.25
+          done
+          curl --fail --silent http://127.0.0.1:4173/ >/dev/null
+          xvfb-run -a node scripts/chrome-webmcp-smoke.mjs
+      - name: Public GitHub Pages clean-browser WebMCP smoke
+        env:
+          FORGEMCP_TARGET_URL: https://terraforming-planet.github.io/ForgeMCP-Multi-Agent-Research---Game-Studio/#/dashboard
+        run: xvfb-run -a node scripts/chrome-webmcp-smoke.mjs
