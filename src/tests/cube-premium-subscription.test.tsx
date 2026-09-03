@@ -79,8 +79,28 @@ describe('Cube Premium local test', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Wypróbuj bezpłatnie przez 30 dni' }))
     expect(screen.getByRole('heading', { name: 'Lokalny test jest aktywny' })).toBeTruthy()
-    expect(screen.getByRole('status')).toHaveTextContent('30 dni pozostało')
+    expect(screen.getByRole('heading', { name: 'Lokalny test jest aktywny' }).closest('section')).toHaveTextContent('30 dni pozostało')
     expect(storage.getItem(CUBE_PREMIUM_TRIAL_STORAGE_KEY)).not.toBeNull()
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    expect(screen.getByRole('heading', { name: 'Wybierz planszę i figurę, potem wygeneruj własny zestaw' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Cube Chess 512/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Classic Black & White/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Lab LEDColor/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Strażnik Ziemi/i })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /Król orbitalny/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Cube Chess 512/i }))
+    fireEvent.change(screen.getByLabelText(/Własny prompt modelu i tekstury/), { target: { value: 'Zaprojektuj króla szachowego z mocną koroną, czytelną sylwetką i niebiesko-zielonym LED.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Wygeneruj zestaw 3D + tekstury' }))
+
+    expect(screen.getByRole('img', { name: /Rotating live preview of Cube Chess 512 eight-level board/i })).toBeTruthy()
+    expect(screen.getByRole('img', { name: /Rotating live preview of ForgeMCP faceted king/i })).toBeTruthy()
+    expect(screen.getByText(/Podgląd, tekstury i pliki glTF pochodzą z tej samej specyfikacji/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Pobierz planszę .gltf' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Pobierz figurę .gltf' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Wygeneruj podstawową grę i od razu wykonaj ruch' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Generate playable game' })).toBeTruthy()
     expect(fetchSpy).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Wyczyść lokalny stan testu' }))
