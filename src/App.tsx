@@ -70,7 +70,7 @@ function Home() {
           <h2>Game Studio</h2>
           <p>Apply Arctic, Sahara, Ocean and Earth–Space materials to board and piece concepts, inspect Cube work in progress and execute the real four-game deterministic benchmark.</p>
           <ul><li>Cube Chess 8×8×8 reference</li><li>Classic + Lab LEDColor previews</li><li>Reversible visual QA</li></ul>
-          <div className="workspace-card__actions"><Link className="button-link button-link--primary" to="/game-studio">Open Game Studio</Link><Link className="button-link button-link--quiet" to="/cube-premium">Cube Premium · 30-day local test</Link></div>
+          <div className="workspace-card__actions"><Link className="button-link button-link--primary" to="/game-studio">Open Game Studio</Link><Link className="button-link button-link--quiet" to="/subscription">Subskrypcja Cube Chess · 30 dni za darmo</Link></div>
         </article>
 
         <article className="workspace-card workspace-card--commerce">
@@ -270,7 +270,7 @@ function MoreMenu() {
   return <div className="desktop-more" ref={menuRef}>
     <button type="button" aria-expanded={open} aria-controls="desktop-more-menu" onClick={() => setOpenPath(open ? null : location.pathname)}>More</button>
     {open ? <div id="desktop-more-menu">
-      <Link to="/dashboard">Control Center</Link><Link to="/stations">4 Station Concepts</Link><Link to="/cube-premium">Cube Premium Subscription · TEST</Link><Link to="/research-archive">Research Archive</Link><Link to="/tools">WebMCP Tools</Link><Link to="/challenge">Challenge Evidence</Link><Link to="/approval">Human Approval</Link><Link to="/integrations">Integration Status</Link>
+      <Link to="/dashboard">Control Center</Link><Link to="/stations">4 Station Concepts</Link><Link to="/subscription">Subskrypcja Cube Chess · TEST</Link><Link to="/research-archive">Research Archive</Link><Link to="/tools">WebMCP Tools</Link><Link to="/challenge">Challenge Evidence</Link><Link to="/approval">Human Approval</Link><Link to="/integrations">Integration Status</Link>
     </div> : null}
   </div>
 }
@@ -288,7 +288,7 @@ function App() {
           <Link to="/">Home</Link>
           <Link to="/labmcp">Terra Satellite Lab</Link>
           <Link to="/game-studio">Game Studio</Link>
-          <Link to="/cube-premium">Cube Premium <small>TEST</small></Link>
+          <Link to="/subscription">Subskrypcja Cube Chess <small>TEST 30 DNI</small></Link>
           <Link to="/shop-lab">3D + Shopify <small>TEST</small></Link>
           <MoreMenu />
         </nav>
@@ -325,7 +325,7 @@ function App() {
         </Routes>
       </main>
       <nav className="mobile-tabbar" aria-label="Mobile navigation">
-        <NavLink end to="/"><b>⌂</b><span>Home</span></NavLink><NavLink to="/labmcp"><b>◎</b><span>Terra</span></NavLink><NavLink to="/game-studio"><b>♟</b><span>Studio</span></NavLink><NavLink to="/shop-lab"><b>◇</b><span>3D Shop</span></NavLink><NavLink to="/stations"><b>✦</b><span>Stations</span></NavLink>
+        <NavLink end to="/"><b>⌂</b><span>Home</span></NavLink><NavLink to="/labmcp"><b>◎</b><span>Terra</span></NavLink><NavLink to="/game-studio"><b>♟</b><span>Studio</span></NavLink><NavLink to="/subscription"><b>★</b><span>Premium</span></NavLink><NavLink to="/stations"><b>✦</b><span>Stations</span></NavLink>
       </nav>
     </div>
   )
