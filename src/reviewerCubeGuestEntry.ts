@@ -1,9 +1,9 @@
 import { CUBE_PUBLIC_URL } from './integrations/cube/adapter'
 
-// Pinned to the deployed Cube build that contains the explicit ForgeMCP guest-entry flow.
-// The revision query also prevents GitHub Pages/CDN from serving an older cached index.html.
-export const CUBE_GUEST_REVISION = '614a3a647965079f0d4c101352076b2982a813f7'
-export const CUBE_GUEST_URL = `${CUBE_PUBLIC_URL}?guest=1&rev=${CUBE_GUEST_REVISION}`
+// Dedicated reviewer entry built by Cube as a second Vite HTML entry.
+// Using a distinct path avoids stale root-index cache while still loading the same public game runtime.
+export const CUBE_GUEST_REVISION = 'cdcac98ef4f527ae1f08c57ad4366d295ba8d3b1'
+export const CUBE_GUEST_URL = `${CUBE_PUBLIC_URL}guest.html?rev=${CUBE_GUEST_REVISION}`
 
 export function applyReviewerCubeGuestEntry() {
   document.querySelectorAll<HTMLAnchorElement>('a[data-cube-public-entry="true"]').forEach(anchor => {
