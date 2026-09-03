@@ -23,6 +23,8 @@ export type ProceduralTexturePattern =
   | 'crayon-spectrum'
   | 'classic-stone'
   | 'checker-led-grid'
+  | 'classic-checker-stone'
+  | 'cube-512-level-grid'
   | 'arctic-cryo-instruments'
   | 'sahara-strata-flow'
   | 'ocean-bathymetry-sonar'
@@ -621,17 +623,36 @@ function createMesh(specification: AssetSpecification): { mesh: Mesh; preset: Pr
   else if (preset === 'crayon-knight') createCrayonKnight(mesh, scale)
   else if (preset === 'classic-pawn') createClassicPawn(mesh, scale)
   else if (preset === 'led-board') {
-    addSemanticPart(mesh, 'board-plinth', 'stable-led-board-base', () => {
-      addBox(mesh, [0, scale * 0.035, 0], [scale, scale * 0.07, scale])
-      for (const [x, z, sx, sz] of [[0, -0.46, 0.9, 0.025], [0, 0.46, 0.9, 0.025], [-0.46, 0, 0.025, 0.9], [0.46, 0, 0.025, 0.9]] as const) {
-        addBox(mesh, [scale * x, scale * 0.082, scale * z], [scale * sx, scale * 0.025, scale * sz])
-      }
-    })
-    addSemanticPart(mesh, 'board-squares', 'eight-by-eight-playable-grid', () => {
-      for (let row = 0; row < 8; row += 1) for (let column = 0; column < 8; column += 1) {
-        addBox(mesh, [scale * (-0.385 + column * 0.11), scale * 0.085, scale * (-0.385 + row * 0.11)], [scale * 0.106, scale * 0.022, scale * 0.106])
-      }
-    })
+    if (specification.boardPreset === 'cube-512') {
+      addSemanticPart(mesh, 'cube-512-support-frame', 'eight-level-board-support-and-level-registration', () => {
+        addBox(mesh, [0, scale * 0.025, 0], [scale, scale * 0.05, scale])
+        for (const x of [-0.47, 0.47]) for (const z of [-0.47, 0.47]) {
+          addBox(mesh, [scale * x, scale * 0.45, scale * z], [scale * 0.022, scale * 0.86, scale * 0.022])
+        }
+      })
+      addSemanticPart(mesh, 'cube-512-levels', 'eight-by-eight-by-eight-visual-address-space', () => {
+        for (let level = 0; level < 8; level += 1) {
+          const y = scale * (0.085 + level * 0.105)
+          for (let row = 0; row < 8; row += 1) for (let column = 0; column < 8; column += 1) {
+            addBox(mesh, [scale * (-0.385 + column * 0.11), y, scale * (-0.385 + row * 0.11)], [scale * 0.104, scale * 0.012, scale * 0.104])
+          }
+        }
+      })
+    } else {
+      addSemanticPart(mesh, 'board-plinth', specification.boardPreset === 'classic-mono' ? 'classic-tournament-board-base' : 'lab-ledcolor-board-base', () => {
+        addBox(mesh, [0, scale * 0.035, 0], [scale, scale * 0.07, scale])
+        if (specification.boardPreset === 'lab-ledcolor') {
+          for (const [x, z, sx, sz] of [[0, -0.46, 0.9, 0.025], [0, 0.46, 0.9, 0.025], [-0.46, 0, 0.025, 0.9], [0.46, 0, 0.025, 0.9]] as const) {
+            addBox(mesh, [scale * x, scale * 0.082, scale * z], [scale * sx, scale * 0.025, scale * sz])
+          }
+        }
+      })
+      addSemanticPart(mesh, 'board-squares', 'eight-by-eight-playable-grid', () => {
+        for (let row = 0; row < 8; row += 1) for (let column = 0; column < 8; column += 1) {
+          addBox(mesh, [scale * (-0.385 + column * 0.11), scale * 0.085, scale * (-0.385 + row * 0.11)], [scale * 0.106, scale * 0.022, scale * 0.106])
+        }
+      })
+    }
   } else if (preset === 'research-station') {
     createResearchStation(mesh, scale, specification.stationId)
   } else {
@@ -645,7 +666,11 @@ function createMesh(specification: AssetSpecification): { mesh: Mesh; preset: Pr
     'facet-rook': 'ForgeMCP faceted rook',
     'crayon-knight': 'Crayon orbital knight',
     'classic-pawn': 'Classic low-poly pawn',
-    'led-board': 'LED chessboard tile',
+    'led-board': specification.boardPreset === 'cube-512'
+      ? 'Cube Chess 512 eight-level board'
+      : specification.boardPreset === 'classic-mono'
+        ? 'Classic black-and-white board'
+        : 'Lab LEDColor chessboard',
     'research-station': 'Research-station shell',
     'texture-tile': 'Procedural texture tile',
   }
@@ -690,7 +715,7 @@ function pngChunk(type: string, data: Uint8Array) {
   return concat([u32(data.length), typeBytes, data, u32(crc32(concat([typeBytes, data])))])
 }
 
-function texturePatternFor(specification: Pick<AssetSpecification, 'assetKind' | 'stationId'>, preset: ProceduralPreset): ProceduralTexturePattern {
+function texturePatternFor(specification: Pick<AssetSpecification, 'assetKind' | 'stationId' | 'boardPreset'>, preset: ProceduralPreset): ProceduralTexturePattern {
   if (specification.assetKind === 'station-shell') {
     if (specification.stationId === 'arctic') return 'arctic-cryo-instruments'
     if (specification.stationId === 'sahara') return 'sahara-strata-flow'
@@ -700,7 +725,11 @@ function texturePatternFor(specification: Pick<AssetSpecification, 'assetKind' |
   if (preset === 'earth-guardian') return 'earth-contours-clouds'
   if (preset === 'crayon-knight') return 'crayon-spectrum'
   if (preset === 'classic-pawn') return 'classic-stone'
-  if (preset === 'led-board') return 'checker-led-grid'
+  if (preset === 'led-board') {
+    if (specification.boardPreset === 'cube-512') return 'cube-512-level-grid'
+    if (specification.boardPreset === 'classic-mono') return 'classic-checker-stone'
+    return 'checker-led-grid'
+  }
   if (['facet-king', 'facet-queen', 'facet-bishop', 'facet-rook'].includes(preset)) return 'facet-led-inlay'
   return 'material-microgrid'
 }
@@ -758,6 +787,19 @@ function patternPixel(
     const grid = x % 16 < 2 || y % 16 < 2
     return mixRgb(checker ? primary : secondary, [220, 248, 255], grid ? 0.48 : 0.04 + noise * 0.06)
   }
+  if (pattern === 'classic-checker-stone') {
+    const checker = (Math.floor(x / 16) + Math.floor(y / 16)) % 2
+    const base = checker ? [22, 28, 38] as [number, number, number] : [222, 226, 224] as [number, number, number]
+    const vein = Math.abs(Math.sin((u + v * 0.42) * 35 + Math.sin(v * 13))) > 0.94
+    return mixRgb(base, checker ? secondary : primary, vein ? 0.22 : noise * 0.055)
+  }
+  if (pattern === 'cube-512-level-grid') {
+    const level = Math.floor(v * 8)
+    const checker = (Math.floor(x / 16) + Math.floor(y / 16) + level) % 2
+    const levelColour = hsvToRgb((level / 8 + variant * 0.035) % 1, 0.72, 0.96)
+    const grid = x % 16 < 2 || y % 16 < 2
+    return mixRgb(checker ? primary : secondary, levelColour, grid ? 0.82 : 0.18 + noise * 0.08)
+  }
   if (pattern === 'earth-contours-clouds') {
     const land = Math.sin(u * 17 + Math.sin(v * 11) * 2.4) + Math.cos(v * 19 - u * 5) > 0.35
     const cloud = Math.abs(Math.sin(u * 29 + v * 17) + Math.cos(v * 21 - u * 9)) < 0.22
@@ -809,7 +851,7 @@ function patternPixel(
 function createTexturePng(
   primaryHex: string,
   secondaryHex: string,
-  specification: Pick<AssetSpecification, 'assetKind' | 'stationId'>,
+  specification: Pick<AssetSpecification, 'assetKind' | 'stationId' | 'boardPreset'>,
   preset: ProceduralPreset,
 ) {
   const width = 128 as const

@@ -154,4 +154,33 @@ describe('3D and Shopify test lab', () => {
     expect(repeated.geometryFingerprint).toBe(stationBundles[2].geometryFingerprint)
     expect(repeated.textureFingerprint).toBe(stationBundles[2].textureFingerprint)
   })
+
+  it('builds three visibly and texturally distinct board examples including all 512 Cube fields', () => {
+    const boards = (['cube-512', 'classic-mono', 'lab-ledcolor'] as const).map(boardPreset => generateProceduralAssetBundle(createAssetSpecification({
+      ...configuration,
+      assetKind: 'board',
+      boardPreset,
+      prompt: `Generate ${boardPreset} chessboard`,
+      scaleMm: 500,
+    })))
+
+    expect(boards.map(bundle => bundle.preview.label)).toEqual([
+      'Cube Chess 512 eight-level board',
+      'Classic black-and-white board',
+      'Lab LEDColor chessboard',
+    ])
+    expect(boards.map(bundle => bundle.texture.pattern)).toEqual([
+      'cube-512-level-grid',
+      'classic-checker-stone',
+      'checker-led-grid',
+    ])
+    expect(boards[0].semanticParts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'cube-512-support-frame' }),
+      expect.objectContaining({ name: 'cube-512-levels' }),
+    ]))
+    expect(boards[0].metrics.vertices).toBeGreaterThan(12_000)
+    expect(new Set(boards.map(bundle => bundle.geometryFingerprint)).size).toBe(3)
+    expect(new Set(boards.map(bundle => bundle.textureFingerprint)).size).toBe(3)
+    expect(boards.every(bundle => bundle.qa.result === 'GENERATOR_CHECKS_PASS')).toBe(true)
+  })
 })
