@@ -6,8 +6,10 @@ import './index.css'
 import { installReviewerCubeGuestEntry } from './reviewerCubeGuestEntry'
 import { installReviewerCubePublicEntry } from './reviewerCubePublicEntry'
 
-installReviewerCubeGuestEntry()
+// First mark all primary reviewer Cube links as public-game entries.
+// Then apply the explicit anonymous guest URL so the final href is ?guest=1.
 installReviewerCubePublicEntry()
+installReviewerCubeGuestEntry()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
