@@ -38,12 +38,14 @@ describe('Cube Premium local test', () => {
     render(<MemoryRouter><CubePremiumSubscription storage={new MemoryStorage()} now={() => new Date('2026-09-03T12:00:00.000Z')} /></MemoryRouter>)
 
     expect(screen.getByRole('heading', { name: 'Cube Chess Premium' })).toBeTruthy()
-    expect(screen.getByText('TEST MODE')).toBeTruthy()
+    expect(screen.getByText('30 DAYS FREE TEST')).toBeTruthy()
     expect(screen.getByText('NO PAYMENT')).toBeTruthy()
-    expect(screen.getByText('CUBE ONLY')).toBeTruthy()
+    expect(screen.getByText('CUBE CHESS ONLY')).toBeTruthy()
     expect(screen.getByText(/Nie tworzy konta, koszyka Shopify, zamówienia, płatności ani odnawialnej subskrypcji/i)).toBeTruthy()
     expect(screen.getByText(/Terra Observation oraz stacje badawcze nie są objęte subskrypcją/i)).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Przejdź do bezpłatnego Game Studio' }).getAttribute('href')).toBe('/game-studio')
+    expect(screen.getByRole('heading', { name: 'Arena Chess jako prywatne źródło treningowe Cube Chess' })).toBeTruthy()
+    expect(screen.getByText('OWNER AUTHORIZED')).toBeTruthy()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
@@ -77,7 +79,7 @@ describe('Cube Premium local test', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     render(<MemoryRouter><CubePremiumSubscription storage={storage} now={() => new Date('2026-09-03T12:00:00.000Z')} /></MemoryRouter>)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Wypróbuj bezpłatnie przez 30 dni' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Przetestuj Premium za darmo przez miesiąc' }))
     expect(screen.getByRole('heading', { name: 'Lokalny test jest aktywny' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Lokalny test jest aktywny' }).closest('section')).toHaveTextContent('30 dni pozostało')
     expect(storage.getItem(CUBE_PREMIUM_TRIAL_STORAGE_KEY)).not.toBeNull()
@@ -99,8 +101,12 @@ describe('Cube Premium local test', () => {
     expect(screen.getByText(/Podgląd, tekstury i pliki glTF pochodzą z tej samej specyfikacji/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Pobierz planszę .gltf' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Pobierz figurę .gltf' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Pobierz planszę gry .gltf' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Wygeneruj podstawową grę i od razu wykonaj ruch' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Generator podstawowej gry z pakietem 3D' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Generate playable game' })).toBeTruthy()
+    const productionPrompt = screen.getByLabelText('Zaawansowany prompt produkcyjny Cube Chess') as HTMLTextAreaElement
+    expect(productionPrompt.value).toContain('KNIGHT — HIGHEST PRIORITY')
     expect(fetchSpy).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Wyczyść lokalny stan testu' }))

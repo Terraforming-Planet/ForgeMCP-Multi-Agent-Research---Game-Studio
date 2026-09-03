@@ -16,9 +16,9 @@ describe('live project previews', () => {
   it('shows factual work plans and loads the original Arctic lab only on request', () => {
     render(<MemoryRouter initialEntries={['/stations']}><App /></MemoryRouter>)
     expect(screen.getByText(/Measure GNSS position, weather, radiation/i)).toBeTruthy()
-    expect(screen.queryByTitle('Arctic · Cryosphere Watch')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Load Arctic source lab' }))
-    const frame = screen.getByTitle('Arctic · Cryosphere Watch')
+    expect(screen.queryByTitle('ORYGINALNY INTERFEJS ŹRÓDŁOWY · Arctic · Cryosphere Watch')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Wczytaj oryginalną stację Arctic' }))
+    const frame = screen.getByTitle('ORYGINALNY INTERFEJS ŹRÓDŁOWY · Arctic · Cryosphere Watch')
     expect(frame.getAttribute('src')).toContain('/arctic-90n/real-ice-lab.html')
   })
 })
