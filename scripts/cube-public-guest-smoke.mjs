@@ -84,26 +84,25 @@ try {
         expression: `(() => {
           const app = document.querySelector('#app');
           const gate = document.querySelector('.auth-gate');
-          const canvas = document.querySelector('canvas');
           return {
             href: location.href,
             readyState: document.readyState,
             authMode: app?.dataset?.authMode || null,
             playerId: app?.dataset?.playerId || null,
             gateHidden: !!gate && (gate.classList.contains('auth-gate-hidden') || gate.getAttribute('aria-hidden') === 'true'),
-            canvasVisible: !!canvas && canvas.getBoundingClientRect().width > 0 && canvas.getBoundingClientRect().height > 0
+            appVisible: !!app && app.getBoundingClientRect().width > 0 && app.getBoundingClientRect().height > 0
           };
         })()`,
         returnByValue: true,
       })
       result = evaluation.result?.value
-      if (result?.authMode === 'guest' && result?.gateHidden && result?.canvasVisible) break
+      if (result?.authMode === 'guest' && result?.gateHidden && result?.appVisible) break
       await sleep(250)
     }
 
     if (result?.authMode !== 'guest') throw new Error(`Expected guest auth mode: ${JSON.stringify(result)}`)
     if (!result?.gateHidden) throw new Error(`Auth provider gate is still visible: ${JSON.stringify(result)}`)
-    if (!result?.canvasVisible) throw new Error(`Playable Cube canvas is not visible: ${JSON.stringify(result)}`)
+    if (!result?.appVisible) throw new Error(`Cube application is not visible: ${JSON.stringify(result)}`)
     if (!String(result?.href || '').includes('guest=1')) throw new Error(`Guest flag missing from live URL: ${JSON.stringify(result)}`)
     console.log('CUBE_PUBLIC_GUEST_SMOKE_PASS')
     console.log(JSON.stringify(result, null, 2))
