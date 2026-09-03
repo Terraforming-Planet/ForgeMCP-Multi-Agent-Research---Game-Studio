@@ -121,7 +121,7 @@ describe('Cube Premium local test', () => {
     render(<MemoryRouter><CubePremiumSubscription storage={storage} now={() => new Date('2026-10-04T12:00:00.000Z')} /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Lokalny test wygasł' })).toBeTruthy()
     expect(screen.getByText(/Bezpłatna gra, benchmark i podglądy nadal działają/i)).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Przejjdź do bezpłatnego Game Studio' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Przejdź do bezpłatnego Game Studio' })).toBeTruthy()
 
     storage.setItem(CUBE_PREMIUM_TRIAL_STORAGE_KEY, '{not-json')
     expect(readCubePremiumLocalTrial(storage, new Date('2026-09-03T12:00:00.000Z')).status).toBe('NOT_STARTED')
