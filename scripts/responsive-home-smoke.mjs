@@ -68,7 +68,7 @@ async function waitForHome(call, deadline) {
   let last
   while (Date.now() < deadline) {
     const evaluated = await call('Runtime.evaluate', {
-      expression: `({ readyState: document.readyState, hasHero: !!document.querySelector('.reviewer-hero'), hasCubePublicPreview: !!document.querySelector('[data-cube-open-source-preview]'), hasGuestEntry: !!document.querySelector('[data-cube-public-entry][href*="guest=1"]') })`,
+      expression: `({ readyState: document.readyState, hasHero: !!document.querySelector('.reviewer-hero'), hasCubePublicPreview: !!document.querySelector('[data-cube-open-source-preview]'), hasGuestEntry: !!document.querySelector('[data-cube-public-entry][href*="guest.html"]') })`,
       returnByValue: true,
     })
     last = evaluated.result?.value
@@ -113,9 +113,9 @@ try {
       const result = evaluation.result?.value
       if (!result?.heroVisible || !result?.terraVisible || !result?.cubeVisible) throw new Error(`${viewport.name}: reviewer entrances not visible`)
       if (!String(result.terraHref || '').includes('/labmcp')) throw new Error(`${viewport.name}: Terra href wrong: ${result.terraHref}`)
-      if (!String(result.cubeHref || '').includes(cubePublicHost) || !String(result.cubeHref || '').includes('guest=1')) throw new Error(`${viewport.name}: Cube does not use direct guest URL: ${result.cubeHref}`)
+      if (!String(result.cubeHref || '').includes(cubePublicHost) || !String(result.cubeHref || '').includes('/guest.html')) throw new Error(`${viewport.name}: Cube does not use dedicated guest page: ${result.cubeHref}`)
       if (result.panelCount !== 2 || result.frameCount !== 1 || !result.framesNonInteractive) throw new Error(`${viewport.name}: preview contract failed`)
-      if (!result.cubePreviewVisible || !String(result.cubePreviewHref || '').includes('guest=1')) throw new Error(`${viewport.name}: Cube preview does not use direct guest URL: ${result.cubePreviewHref}`)
+      if (!result.cubePreviewVisible || !String(result.cubePreviewHref || '').includes('/guest.html')) throw new Error(`${viewport.name}: Cube preview does not use dedicated guest page: ${result.cubePreviewHref}`)
       if (!/Static preview of the Cube Chess 512 playable/i.test(String(result.cubePreviewAlt || '')) || !result.cubePreviewIsDataImage) throw new Error(`${viewport.name}: static Cube preview labelling failed`)
       if (result.horizontalOverflow > 2) throw new Error(`${viewport.name}: horizontal overflow ${result.horizontalOverflow}px`)
       console.log(`RESPONSIVE_HOME_${viewport.name.toUpperCase()}_PASS`, JSON.stringify({viewport:result.viewport,horizontalOverflow:result.horizontalOverflow,terraHref:result.terraHref,cubeHref:result.cubeHref,cubePreviewHref:result.cubePreviewHref}))
