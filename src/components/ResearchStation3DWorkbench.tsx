@@ -3,6 +3,7 @@ import type { ResearchStationPreset } from '../data/researchStations'
 import { createAssetSpecification, type AssetConfiguration } from '../integrations/commerce/productLab'
 import { generateProceduralAssetBundle, proceduralAssetManifest } from '../integrations/commerce/proceduralAssets'
 import { generateSaharaExcavatorBundle } from '../integrations/terra/saharaExcavatorAsset'
+import { repairTerraMaterials } from '../integrations/terra/terraMaterialRepair'
 import { ProceduralAssetViewer } from './ProceduralAssetViewer'
 import { StatusBadge } from './StatusBadge'
 
@@ -52,20 +53,25 @@ function downloadText(filename: string, text: string, mimeType: string) {
   URL.revokeObjectURL(url)
 }
 
+function generateStationBundle(station: ResearchStationPreset, prompt: string) {
+  const specification = createAssetSpecification(makeConfiguration(station, prompt))
+  return repairTerraMaterials(generateProceduralAssetBundle(specification), station.id)
+}
+
 export function ResearchStation3DWorkbench({ station }: { station: ResearchStationPreset }) {
   const [prompt, setPrompt] = useState(STATION_PROMPTS[station.id])
   const specification = useMemo(() => createAssetSpecification(makeConfiguration(station, prompt)), [station, prompt])
-  const [bundle, setBundle] = useState(() => generateProceduralAssetBundle(createAssetSpecification(makeConfiguration(station, STATION_PROMPTS[station.id]))))
+  const [bundle, setBundle] = useState(() => generateStationBundle(station, STATION_PROMPTS[station.id]))
   const excavatorBundle = useMemo(() => station.id === 'sahara'
-    ? generateSaharaExcavatorBundle(createAssetSpecification(makeExcavatorConfiguration(station)))
+    ? repairTerraMaterials(generateSaharaExcavatorBundle(createAssetSpecification(makeExcavatorConfiguration(station))), 'sahara-excavator')
     : null, [station])
-  const [message, setMessage] = useState('Model 3D stacji wygenerowany lokalnie z funkcjami przypisanymi do tego presetu.')
+  const [message, setMessage] = useState('Model 3D stacji wygenerowany lokalnie z funkcjami przypisanymi do tego presetu i rozdzielonymi materiałami PBR.')
   const current = bundle.specificationId === specification.id
 
   function regenerate() {
-    const next = generateProceduralAssetBundle(specification)
+    const next = repairTerraMaterials(generateProceduralAssetBundle(specification), station.id)
     setBundle(next)
-    setMessage(`Wygenerowano ${next.preview.label}: ${next.metrics.vertices} wierzchołków, ${next.metrics.triangles} trójkątów, ${next.semanticParts.length} nazwanych modułów.`)
+    setMessage(`Wygenerowano ${next.preview.label}: ${next.metrics.vertices} wierzchołków, ${next.metrics.triangles} trójkątów, ${next.semanticParts.length} nazwanych modułów oraz osobne materiały dla lodu/wody/piasku/Ziemi i metalu zależnie od stacji.`)
   }
 
   function downloadManifest() {
@@ -74,10 +80,10 @@ export function ResearchStation3DWorkbench({ station }: { station: ResearchStati
 
   return <section className="card" aria-label={`${station.name} generated 3D station workbench`}>
     <div className="section-heading">
-      <div><p className="eyebrow">OBRACALNY MODEL 3D · TEKSTURA · FUNKCJE STACJI</p><h3>{station.name} · model funkcjonalny</h3></div>
-      <StatusBadge value={current ? '3D GLTF READY' : 'REGENERATE'} />
+      <div><p className="eyebrow">OBRACALNY MODEL 3D · SEMANTYCZNE PBR · FUNKCJE STACJI</p><h3>{station.name} · model funkcjonalny</h3></div>
+      <StatusBadge value={current ? '3D GLTF + PBR READY' : 'REGENERATE'} />
     </div>
-    <p>Ten model jest generowaną koncepcją 3D opartą o funkcje wymienione dla stacji. Oryginalny interfejs badawczy pozostaje osobnym źródłem poniżej; model 3D nie jest zdjęciem ani dowodem wdrożonego sprzętu.</p>
+    <p>Ten model jest generowaną koncepcją 3D opartą o funkcje wymienione dla stacji. Oryginalny interfejs badawczy pozostaje osobnym źródłem poniżej; model 3D nie jest zdjęciem ani dowodem wdrożonego sprzętu. Materiały wizualne nie są danymi satelitarnymi.</p>
     <div className="grid two">
       <div>
         <ProceduralAssetViewer bundle={bundle} stale={!current} />
@@ -108,7 +114,7 @@ export function ResearchStation3DWorkbench({ station }: { station: ResearchStati
         <ProceduralAssetViewer bundle={excavatorBundle} />
       </div>
       <div>
-        <p>Osobny model ma gąsienice, obrotnicę, kabinę, przeciwwagę, wysięgnik, ramię, widoczne przeguby hydrauliczne i łyżkę skierowaną do terenu. Żółta powłoka konstrukcyjna i ciemna stal są celowo oddzielone od znaczenia danych terenowych.</p>
+        <p>Osobny model ma gąsienice, obrotnicę, kabinę, przeciwwagę, wysięgnik, ramię, widoczne przeguby hydrauliczne i łyżkę skierowaną do terenu. Eksport rozdziela materiał: ciemna zwietrzała stal na gąsienicach i łyżce, żółta powłoka konstrukcyjna na korpusie oraz przydymione szkło kabiny.</p>
         <p className="lab-note"><b>Granica prawdy:</b> to wygenerowany asset wizualizacyjny sprzętu terenowego. Nie oznacza, że koparka została wysłana na Saharę ani że wykonano wykop.</p>
         <div className="toolbar"><button type="button" onClick={() => downloadText(excavatorBundle.model.filename, excavatorBundle.model.content, excavatorBundle.model.mimeType)}>Pobierz koparkę .gltf</button></div>
       </div>
