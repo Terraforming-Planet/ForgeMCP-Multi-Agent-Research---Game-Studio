@@ -128,6 +128,7 @@ export function GameStudio() {
           <p>Use the four Terra research stations as material and lighting systems, preview boards and piece families, then run the real pinned Cube Chess benchmark before any human-approved upstream change.</p>
           <div className="toolbar">
             <a className="button-link button-link--primary" href={CUBE_URL} target="_blank" rel="noreferrer">Play the live Cube Chess 512 ↗</a>
+            <Link className="button-link button-link--commerce" to="/cube-premium">Cube Premium · 30-day local test</Link>
             <Link className="button-link" to="/shop-lab">Open 3D + Shopify Test Lab</Link>
           </div>
         </div>
@@ -143,7 +144,7 @@ export function GameStudio() {
           <ProceduralAssetViewer bundle={stationModel} />
           <details className="concept-reference"><summary>Show station concept artwork</summary><StationConceptVisual station={station} compact /></details>
           <p>{station.gameApplication}</p>
-          <p className="lab-note"><b>Model loaded:</b> {stationModel.metrics.vertices} vertices · {stationModel.metrics.triangles} triangles · {stationModel.geometryFingerprint}. This is a browser-generated concept proxy; the source research lab is available below.</p>
+          <p className="lab-note"><b>Model loaded:</b> {stationModel.metrics.vertices} vertices · {stationModel.metrics.triangles} triangles · {stationModel.geometryFingerprint}. Instruments are visualised from the station mission preset; this remains a browser-generated low-poly prototype, not a deployed physical station.</p>
           <small>{station.truthBoundary}</small>
           <div className="toolbar"><a className="button-link" href={station.publicUrl} target="_blank" rel="noreferrer">Open {station.name} source lab ↗</a><Link className="button-link button-link--quiet" to="/stations">Compare all four stations</Link></div>
 
@@ -218,6 +219,7 @@ export function GameStudio() {
           <article><StatusBadge value="THIS RUN" /><b>4 legal games</b><p>ForgeMCP executes four 40-ply-cap deterministic games. No Elo or neural-network improvement is claimed.</p></article>
           <article><StatusBadge value="UPSTREAM HISTORY" /><b>100,000 virtual curriculum games</b><p><a href={CUBE_PR_101} target="_blank" rel="noreferrer">PR #101 ↗</a> tuned Alpha-Beta policy parameters across virtual decisions. It was not neural-network training and not 100,000 full legal game replays.</p></article>
           <article><StatusBadge value="UPSTREAM HISTORY" /><b>3,000 legal policy rollouts</b><p><a href={CUBE_PR_102} target="_blank" rel="noreferrer">PR #102 ↗</a> recorded 53,993 plies across three 1,000-rollout runs. It remains separate from this browser run.</p></article>
+          <article><StatusBadge value="PRIVATE PROVENANCE" /><b>300 + 3 smoke run</b><p>The owner-authorized Chess Arena workspace records 300 curriculum games and three legal rollout smoke games. No private checkpoint or source file is loaded here, and this is not the unfinished 100k + 3k run.</p></article>
           <article><StatusBadge value="EXTERNAL DATASET" /><b>Visual compliance · ResNet50 448 px</b><p><a href={VISUAL_DATASET} target="_blank" rel="noreferrer">Dataset evidence ↗</a> is provenance only; Forge does not claim that those weights are loaded by the live Cube engine.</p></article>
         </div>
         <div className="toolbar"><a className="button-link" href={CUBE_PR_135} target="_blank" rel="noreferrer">Lab LEDColor + Classic board · PR #135 ↗</a><a className="button-link" href={CUBE_PR_126} target="_blank" rel="noreferrer">Refined Staunton figures · PR #126 ↗</a></div>

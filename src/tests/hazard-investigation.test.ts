@@ -23,8 +23,15 @@ function response(body: unknown, ok = true, status = 200) {
   return { ok, status, json: async () => body } as Response
 }
 
-function workerAnalysis() {
-  const analysisImages = [2020, 2021, 2022, 2023].map(year => ({
+function workerAnalysis(options: {
+  latitude?: number
+  longitude?: number
+  radiusKm?: number
+  startDate?: string
+  endDate?: string
+  analysisYears?: number[]
+} = {}) {
+  const analysisImages = (options.analysisYears ?? [2020, 2021, 2022]).map(year => ({
     date: `${year}-04-15`,
     source: 'NASA HLS S30',
     url: `https://worker.example/model-${year}.jpg`,
@@ -36,16 +43,21 @@ function workerAnalysis() {
   return {
     service: 'terra-observation-area-analysis-v2',
     generated_at_utc: '2026-09-01T00:00:00Z',
-    area: { place_name: 'Test valley', latitude: 50, longitude: 20, radius_km: 10 },
-    period: { start_date: '2020-03-01', end_date: '2022-05-31' },
+    area: {
+      place_name: 'Test valley',
+      latitude: options.latitude ?? 50,
+      longitude: options.longitude ?? 20,
+      radius_km: options.radiusKm ?? 10,
+    },
+    period: { start_date: options.startDate ?? '2020-03-01', end_date: options.endDate ?? '2022-05-31' },
     depth: 'deep',
     preview_images: [],
     analysis_images: analysisImages,
-    ai_visual_image_count: 4,
-    model_visual_image_count: 4,
+    ai_visual_image_count: analysisImages.length,
+    model_visual_image_count: analysisImages.length,
     imagery_authenticity_policy: {
       model_input_rule: 'ORIGINAL_OFFICIAL_SATELLITE_PRODUCTS_ONLY',
-      original_model_input_count: 4,
+      original_model_input_count: analysisImages.length,
       derived_model_input_count: 0,
       ai_generated_model_input_count: 0,
       derived_display_only_count: 0,
@@ -75,7 +87,7 @@ function workerAnalysis() {
         },
       },
       notable_features: ['New earthworks candidate near the channel.'],
-      confidence: { level: 'medium', reason: 'Four representative images were supplied.' },
+      confidence: { level: 'medium', reason: `${analysisImages.length} representative images were supplied.` },
       limitations: ['Representative dates only.'],
       recommended_next_step: 'Acquire matched-season source products and survey the terrain.',
     },
@@ -83,14 +95,18 @@ function workerAnalysis() {
   }
 }
 
-function installFetch(analysisAvailable: boolean, inspectAnalysisRequest?: (body: Record<string, unknown>) => void) {
+function installFetch(
+  analysisAvailable: boolean,
+  inspectAnalysisRequest?: (body: Record<string, unknown>) => void,
+  analysisResponse = workerAnalysis(),
+) {
   vi.stubGlobal('fetch', vi.fn(async (request: RequestInfo | URL, init?: RequestInit) => {
     const url = String(request)
     if (url === `${TERRA_EVIDENCE_API_URL}/research/analyze`) {
       const body = JSON.parse(String(init?.body)) as { season?: string }
       expect(body.season).toBe('spring')
       inspectAnalysisRequest?.(body)
-      return analysisAvailable ? response(workerAnalysis()) : response({ error: 'Area analysis unavailable' }, false, 503)
+      return analysisAvailable ? response(analysisResponse) : response({ error: 'Area analysis unavailable' }, false, 503)
     }
     if (url === `${TERRA_EVIDENCE_API_URL}/research/yearly-gallery`) {
       const body = JSON.parse(String(init?.body)) as { years: number[] }
@@ -128,7 +144,7 @@ describe('generic Terra hazard investigation truth gates', () => {
     const result = await runHazardInvestigation(input)
 
     expect(result.area.resolutionMethod).toBe('SUPPLIED_COORDINATES')
-    expect(result.imagery.visuallyInspectedByModel).toBe(4)
+    expect(result.imagery.visuallyInspectedByModel).toBe(3)
     expect(result.imagery.slots).toHaveLength(3)
     expect(result.signalState).toBe('SCREENING_CANDIDATE')
     expect(result.classification).toBe('HYPOTHESIS')
@@ -137,6 +153,116 @@ describe('generic Terra hazard investigation truth gates', () => {
     expect(result.alertDraft.delivery).toBe('NOT_SENT')
     expect(result.promotionGate.verifiedFindingAllowed).toBe(false)
     expect(result.provenance.some(item => item.operation === 'analyze_multiyear_imagery')).toBe(true)
+  })
+
+  it.each([
+    ['coordinates', workerAnalysis({ latitude: 50.01 })],
+    ['radius', workerAnalysis({ radiusKm: 11 })],
+    ['period', workerAnalysis({ startDate: '2019-03-01' })],
+  ])('rejects an analysis response with mismatched %s fail-closed', async (_mismatch, analysisResponse) => {
+    installFetch(true, undefined, analysisResponse)
+    const result = await runHazardInvestigation(input)
+
+    expect(result.imagery.visuallyInspectedByModel).toBe(0)
+    expect(result.imagery.analysis).toBeNull()
+    expect(result.signalState).toBe('IMAGERY_NOT_VISUALLY_INSPECTED')
+    expect(result.classification).toBe('INSUFFICIENT_DATA')
+    expect(result.sourceStatus.find(item => item.id === 'terra-area-analysis')?.state).toBe('INSUFFICIENT_DATA')
+    expect(result.observations.some(item => item.source.startsWith('Terra Worker'))).toBe(false)
+  })
+
+  it('rejects every model input when one analysis image is outside the requested period', async () => {
+    installFetch(true, undefined, workerAnalysis({ analysisYears: [2020, 2021, 2022, 2023] }))
+    const result = await runHazardInvestigation(input)
+
+    expect(result.imagery.visuallyInspectedByModel).toBe(0)
+    expect(result.imagery.analysis).toBeNull()
+    expect(result.signalState).toBe('IMAGERY_NOT_VISUALLY_INSPECTED')
+    expect(result.classification).toBe('INSUFFICIENT_DATA')
+    expect(result.sourceStatus.find(item => item.id === 'terra-area-analysis')?.detail).toContain('2023-04-15')
+    expect(result.observations.some(item => item.source.startsWith('Terra Worker'))).toBe(false)
+  })
+
+  it('does not promote a nearby custom AOI to TEST 001 without the explicit case ID', async () => {
+    let analysisRequest: Record<string, unknown> = {}
+    const customInput: HazardInvestigationInput = {
+      ...input,
+      regionQuery: 'Custom point next to TEST 001',
+      latitude: 53.594595,
+      longitude: 19.00014,
+      radiusKm: 2,
+    }
+    installFetch(
+      true,
+      body => { analysisRequest = body },
+      workerAnalysis({ latitude: 53.594595, longitude: 19.00014, radiusKm: 2 }),
+    )
+
+    const result = await runHazardInvestigation(customInput)
+
+    expect(analysisRequest).not.toHaveProperty('case_id')
+    expect(analysisRequest).not.toHaveProperty('focus_latitude')
+    expect(result.toolsExecuted).not.toContain('inspect_test_001_evidence')
+    expect(result.test001Context).toBeNull()
+    expect(result.signalState).not.toBe('RECORDED_ANOMALY')
+  })
+
+  it('uses TEST 001 only when the explicit case ID, AOI and focus all match', async () => {
+    let analysisRequest: Record<string, unknown> = {}
+    const test001Input: HazardInvestigationInput = {
+      ...input,
+      regionQuery: 'Staw leśny przy Jeziorze Kuchnia, Polska — TEST 001',
+      latitude: 53.594595,
+      longitude: 19.00014,
+      radiusKm: 2,
+      caseId: 'test-001-forest-pond-kuchnia',
+      focusLatitude: 53.594595,
+      focusLongitude: 19.00014,
+      focusRadiusKm: 0.25,
+    }
+    installFetch(
+      true,
+      body => { analysisRequest = body },
+      workerAnalysis({ latitude: 53.594595, longitude: 19.00014, radiusKm: 2 }),
+    )
+
+    const result = await runHazardInvestigation(test001Input)
+
+    expect(analysisRequest).toMatchObject({
+      case_id: 'test-001-forest-pond-kuchnia',
+      latitude: 53.594595,
+      longitude: 19.00014,
+      radius_km: 2,
+      focus_latitude: 53.594595,
+      focus_longitude: 19.00014,
+      focus_radius_km: 0.25,
+    })
+    expect(result.toolsExecuted).toContain('inspect_test_001_evidence')
+  })
+
+  it.each([
+    ['AOI coordinates', { latitude: 53.5947 }],
+    ['AOI radius', { radiusKm: 3 }],
+    ['focus coordinates', { focusLongitude: 19.0003 }],
+    ['focus radius', { focusRadiusKm: 0.5 }],
+  ])('rejects an explicit TEST 001 request with mismatched %s before fetching', async (_mismatch, override) => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const test001Input: HazardInvestigationInput = {
+      ...input,
+      regionQuery: 'TEST 001',
+      latitude: 53.594595,
+      longitude: 19.00014,
+      radiusKm: 2,
+      caseId: 'test-001-forest-pond-kuchnia',
+      focusLatitude: 53.594595,
+      focusLongitude: 19.00014,
+      focusRadiusKm: 0.25,
+      ...override,
+    }
+
+    await expect(runHazardInvestigation(test001Input)).rejects.toThrow(/TEST 001 wymaga/)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('does not pretend that catalogue images were visually inspected when the analysis Worker fails', async () => {

@@ -20,9 +20,11 @@ import { StationConceptVisual } from './StationConceptVisual'
 import { StatusBadge } from './StatusBadge'
 import { ProceduralAssetViewer } from './ProceduralAssetViewer'
 
-const EXAMPLE_PROMPT = 'Zrób mi model 3D figurki planety Ziemia jako bajkowej postaci stojącej na szachownicy czarno-białej z podświetleniem LED zielono-niebieskim.'
+const EXAMPLE_PROMPT = 'Zrób mi model 3D figurki planety Ziemia jako przyjaznej bajkowej postaci stojącej na klasycznej czarno-białej szachownicy z zielono-niebieskim podświetleniem LED. Dodaj czytelne oczy, uśmiech, wypukłe kontynenty, rękawiczki, stabilne buty i okrągłą podstawę. Zachowaj rozpoznawalną sylwetkę z góry i pod kątem 3/4.'
 
-const CODEX_BUILD_COMMAND = `Zbuduj na podstawie mojego promptu wersjonowany, niskopoligonowy prototyp glTF oraz teksturę PNG. Użyj wyłącznie zasobów własnych albo z udokumentowaną licencją. Pokaż podgląd tej samej geometrii, którą eksportujesz, wykonaj kontrolę indeksów, skali i pochodzenia, nie deklaruj gotowości produkcyjnej i zatrzymaj publikację, Shopify oraz RFQ do akceptacji człowieka.`
+const CODEX_PIECE_COMMAND = `Zaprojektuj spójny komplet sześciu czytelnych figur szachowych: król, hetman, wieża, goniec, koń i pion. Zachowaj klasyczne sylwetki rozpoznawalne z widoku 3/4 i z góry, stabilną okrągłą podstawę, wspólną skalę, środek w (0,0,0), oś Y w górę i bezpieczny odstęp od pola. Styl: nowoczesny czeski kubizm, kontrolowane fasety, delikatne wytłoczenia i zielono-niebieskie strefy LED. Koń ma mieć jednoznaczny profil: pysk, uszy, łuk szyi i centralną wielobarwną grzywę — bez anten. Przygotuj niepokrywające się UV dla unikalnych części, PBR baseColor/roughness/metalness/emissive, wariant jasny i ciemny, LOD0/LOD1/LOD2 oraz GLB. Użyj wyłącznie naszych zasobów z manifestem własności. Wygeneruj arkusz podglądów, liczbę wierzchołków/trójkątów, SHA-256 i raport QA: skala, bounds, normals, UV, materiały, brak NaN i brak indeksów poza zakresem. Nie nazywaj modelu produkcyjnym, dopóki QA i człowiek go nie zaakceptują.`
+
+const CODEX_STATION_COMMAND = `Zbuduj cztery rozpoznawalne i funkcjonalnie różne stacje LOD: Arctic — kopuła, maszt GNSS/meteo oraz moduł lodu, CTD, ADCP i sonaru; Sahara — moduł geologiczno-hydrologiczny, GPR, panele PV i wieża; Ocean — stabilna platforma z pływakami, CTD/ADCP/sonarem, anteną i miejscem AUV; Earth–Space — kopuła optyczna, tracker, antena i skrzydła PV. Każdy przyrząd ma mieć nazwę funkcji w manifeście, osobną strefę materiałową i czytelną sylwetkę. Nie dodawaj fikcyjnych zdolności ani informacji o działającej fizycznej stacji. Dostarcz GLB, PBR, UV, emissive LED, LOD0/LOD1/LOD2, mobilny podgląd, bounds/normal/UV QA i manifest pochodzenia.`
 
 type GeneratorExample = {
   id: string
@@ -39,8 +41,11 @@ type GeneratorExample = {
 const GENERATOR_EXAMPLES: GeneratorExample[] = [
   { id: 'earth', label: '🌍 Earth Guardian', prompt: EXAMPLE_PROMPT, assetKind: 'figurine', piecePreset: 'earth-guardian', stationId: 'earth-space', boardPreset: 'classic-mono', primaryColor: '#16a7e0', secondaryColor: '#35f0a1' },
   { id: 'rook', label: '♜ Facet rook', prompt: 'Wygeneruj futurystyczną, fasetowaną wieżę szachową ForgeMCP z niebieskim światłem LED.', assetKind: 'figurine', piecePreset: 'czech-facet', primaryColor: '#6f8cff', secondaryColor: '#5de4ff' },
-  { id: 'knight', label: '♞ Crayon knight', prompt: 'Wygeneruj niskopoligonowego konia szachowego Crayon Cathedral z dwiema kredkowymi antenami.', assetKind: 'figurine', piecePreset: 'lab-ledcolor', primaryColor: '#ffb547', secondaryColor: '#ff54d8' },
+  { id: 'knight', label: '♞ Crayon knight', prompt: 'Wygeneruj niskopoligonowego konia szachowego Crayon Cathedral z wyraźnym pyskiem, uszami, łukiem szyi i centralną wielobarwną grzywą — bez anten.', assetKind: 'figurine', piecePreset: 'lab-ledcolor', primaryColor: '#ffb547', secondaryColor: '#ff54d8' },
   { id: 'pawn', label: '♟ Classic pawn', prompt: 'Wygeneruj klasyczny pionek szachowy jako czysty model low-poly do podglądu.', assetKind: 'figurine', piecePreset: 'classic', primaryColor: '#d8e2f3', secondaryColor: '#5de4ff' },
+  { id: 'bishop', label: '♝ Facet bishop', prompt: 'Wygeneruj kubistycznego gońca szachowego z czytelnym nacięciem mitry, stabilną podstawą i niebiesko-zieloną strefą LED.', assetKind: 'figurine', piecePreset: 'czech-facet', primaryColor: '#7ba8ff', secondaryColor: '#35f0a1' },
+  { id: 'queen', label: '♛ Orbital queen', prompt: 'Wygeneruj smukłego hetmana szachowego z orbitalną koroną, fasetowanym korpusem i subtelną strefą LED.', assetKind: 'figurine', piecePreset: 'czech-facet', primaryColor: '#a77bff', secondaryColor: '#56ddff' },
+  { id: 'king', label: '♚ Orbital king', prompt: 'Wygeneruj króla szachowego z mocną klasyczną sylwetką, geometryczną koroną, stabilną podstawą i zielono-niebieskim LED.', assetKind: 'figurine', piecePreset: 'czech-facet', primaryColor: '#56ddff', secondaryColor: '#35f0a1' },
   { id: 'board', label: '▦ LED board', prompt: 'Wygeneruj czarno-białą planszę szachową z zielono-niebieską ramą LED.', assetKind: 'board', boardPreset: 'lab-ledcolor', primaryColor: '#10131c', secondaryColor: '#35f0a1' },
   { id: 'arctic', label: '❄ Arctic station', prompt: 'Wygeneruj proceduralny model koncepcyjny stacji badawczej Arctic 90°N.', assetKind: 'station-shell', stationId: 'arctic', primaryColor: '#75efff', secondaryColor: '#dffbff' },
   { id: 'sahara', label: '◒ Sahara station', prompt: 'Wygeneruj proceduralny model koncepcyjny stacji Sahara Water Memory.', assetKind: 'station-shell', stationId: 'sahara', primaryColor: '#ffc767', secondaryColor: '#ffe2a9' },
@@ -55,7 +60,7 @@ function GeneratedTexturePreview({ bundle }: { bundle: ProceduralAssetBundle }) 
   useEffect(() => {
     return () => URL.revokeObjectURL(url)
   }, [url])
-  return <img className="generated-texture-preview" src={url} alt={`Generated 128 by 128 pixel texture for ${bundle.preview.label}`} />
+  return <img className="generated-texture-preview" src={url} alt={`Generated ${bundle.texture.width} by ${bundle.texture.height} pixel texture for ${bundle.preview.label}`} />
 }
 
 function downloadJson(name: string, value: unknown) {
@@ -126,6 +131,7 @@ export function ProductLab() {
   const shopifyDraftIsCurrent = shopifySpecificationId === specification.id
   const rfqDraftIsCurrent = rfqSpecificationId === specification.id
   const finalTestIsCurrent = finalTest?.specificationId === specification.id
+  const codexCommand = track === 'terra-station' ? CODEX_STATION_COMMAND : CODEX_PIECE_COMMAND
 
   function generateAssetFiles() {
     const generated = generateProceduralAssetBundle(specification)
@@ -147,7 +153,7 @@ export function ProductLab() {
 
   async function copyCodexCommand() {
     try {
-      await navigator.clipboard.writeText(`${CODEX_BUILD_COMMAND}\n\nPrompt użytkownika: ${prompt}`)
+      await navigator.clipboard.writeText(`${codexCommand}\n\nPrompt użytkownika: ${prompt}`)
       setCopyMessage('Codex command copied.')
     } catch {
       setCopyMessage('Copy is unavailable in this browser; select the command text manually.')
@@ -226,12 +232,12 @@ export function ProductLab() {
       </section>
 
       <section className="card premium-pack-notice">
-        <div className="lab-section-title"><div><p className="eyebrow">LARGE ASSET INTAKE · PREPARED, NOT UPLOADED</p><h2>Premium Visual Pack — free judging demo</h2></div><StatusBadge value="LICENSE CHECK REQUIRED" /></div>
-        <p>A 5 GB source pack must be audited file-by-file, optimized into small GLB/KTX2 previews and served on demand from object storage. It must not be bundled into GitHub Pages or loaded when the site opens.</p>
+        <div className="lab-section-title"><div><p className="eyebrow">{track === 'cube-asset' ? 'CUBE PREMIUM ASSET INTAKE' : 'TERRA STATION SOURCE INTAKE · NOT PREMIUM'}</p><h2>{track === 'cube-asset' ? 'Cube Chess Premium Visual Pack' : 'Research-station engineering assets'}</h2></div><StatusBadge value="SOURCE PACK NOT IMPORTED" /></div>
+        <p>{track === 'cube-asset' ? 'The owner-declared 4.2 GB Cube source pack must be audited file-by-file, optimized into small GLB/KTX2 previews and served on demand. It must not be bundled into GitHub Pages or loaded when the site opens.' : 'Terra station assets stay outside the Cube Chess subscription. They require the same provenance, geometry and mobile-performance checks, but remain part of the research workflow rather than a premium game product.'}</p>
         <div className="lab-metrics premium-pack-steps">
           <article><b>01</b><span>scan + inventory</span></article><article><b>02</b><span>license + origin</span></article><article><b>03</b><span>GLB/KTX2 + LOD</span></article><article><b>04</b><span>CDN + mobile QA</span></article>
         </div>
-        <p className="lab-note">No uploaded asset will be sold or relicensed automatically. The public judging path stays free; Shopify remains a blocked mapping test until a licensed product and authorized store are connected.</p>
+        <p className="lab-note">No source asset is sold, published or relicensed automatically. The public judging path stays free; Shopify remains a blocked mapping test until an audited product, authorized store and explicit human decision exist.</p>
       </section>
 
       <section className="product-workbench">
@@ -277,14 +283,14 @@ export function ProductLab() {
         </div>
 
         <div className="card product-preview" style={previewStyle}>
-          <div className="lab-section-title"><div><p className="eyebrow">VISUAL CONCEPT + LOCAL ASSET EXPORT</p><h2>{station.name} · {assetKind}</h2></div><StatusBadge value={assetBundleIsCurrent ? 'GLTF READY' : assetBundle ? 'REGENERATE REQUIRED' : 'CONCEPT'} /></div>
+          <div className="lab-section-title"><div><p className="eyebrow">VISUAL CONCEPT + LOCAL ASSET EXPORT</p><h2>{assetBundle ? `${assetBundle.preview.label}${assetBundleIsCurrent ? '' : ' · OUTDATED'}` : `${station.name} · ${assetKind}`}</h2></div><StatusBadge value={assetBundleIsCurrent ? 'GLTF READY' : assetBundle ? 'REGENERATE REQUIRED' : 'CONCEPT'} /></div>
           {assetBundle
             ? <ProceduralAssetViewer bundle={assetBundle} stale={!assetBundleIsCurrent} />
             : track === 'cube-asset' && assetKind === 'figurine' && piecePreset === 'earth-guardian'
               ? <img src={earthFigurineConcept} alt="AI-generated Earth figurine concept on a black-and-white board with green and blue LEDs; not a manufactured product or 3D model file" />
               : <StationConceptVisual station={station} />}
           <div className="preview-swatches"><i /><i /><span>{material}</span></div>
-          <p className="lab-note"><b>{assetBundle ? 'Live generated geometry:' : 'Concept reference:'}</b> {assetBundle ? 'the rotating canvas renders the same vertex and index arrays embedded in the downloadable glTF.' : 'visual direction only; generate below to create and see a real low-poly prototype.'} It is not a sculpted production asset or manufacturing proof.</p>
+          <p className="lab-note"><b>{assetBundle ? 'Live generated geometry:' : 'Concept reference:'}</b> {assetBundle ? 'the rotating canvas renders the same vertex and index arrays embedded in the downloadable glTF; the PNG below is the exported texture atlas and the canvas remains a geometry/material-zone preview.' : 'visual direction only; generate below to create and see a real low-poly prototype.'} It is not a sculpted production asset or manufacturing proof.</p>
           <p className="generation-status" aria-live="polite">{generationMessage}</p>
           <div className="asset-export-panel">
             <button type="button" className="lab-primary" onClick={generateAssetFiles}>Generate and show 3D model + texture</button>
@@ -310,7 +316,7 @@ export function ProductLab() {
         <div className="lab-section-title"><div><p className="eyebrow">FORGEMCP ASSISTANT + CODEX AGENT</p><h2>2. Prepare a build-ready agent brief</h2></div><StatusBadge value={assistantIsCurrent ? 'BRIEF READY' : assistantResult ? 'REGENERATE REQUIRED' : 'WAITING FOR HUMAN'} /></div>
         <div className="assistant-flow" aria-label="Assistant workflow"><span>Human prompt</span><b>→</b><span>ForgeMCP assistant</span><b>→</b><span>Codex agent brief</span><b>→</b><span>QA</span><b>→</b><span>Human approval</span></div>
         <label>Codex build command
-          <textarea aria-label="Codex build command" rows={6} readOnly value={`${CODEX_BUILD_COMMAND}\n\nPrompt użytkownika: ${prompt}`} />
+          <textarea aria-label="Codex build command" rows={10} readOnly value={`${codexCommand}\n\nPrompt użytkownika: ${prompt}`} />
         </label>
         <div className="toolbar">
           <button type="button" className="lab-primary" onClick={runAssistant}>Assistant: prepare Codex brief</button>

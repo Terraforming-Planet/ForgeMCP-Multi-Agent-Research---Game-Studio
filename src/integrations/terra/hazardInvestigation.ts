@@ -5,6 +5,7 @@ import {
   inspectLocalHydrologyContext,
   inspectTest001Evidence,
   resolveReferenceDataset,
+  TEST_001_AOI,
   type AnalogueSearch,
   type ConnectivityContextItem,
   type ReferenceResolution,
@@ -12,6 +13,10 @@ import {
 } from './labmcp'
 
 export const TERRA_EVIDENCE_API_URL = 'https://terra-observation-evidence-explainer.xodobrox.workers.dev'
+
+const TEST_001_CASE_ID = 'test-001-forest-pond-kuchnia' as const
+const COORDINATE_TOLERANCE_DEGREES = 0.000001
+const RADIUS_TOLERANCE_KM = 0.000001
 
 export const HAZARD_TYPES = [
   'water-loss',
@@ -596,6 +601,25 @@ function seasonRange(startYear: number, endYear: number, season: InvestigationSe
   return { startDate: `${startYear}-${start}`, endDate: `${endYear}-${end}` }
 }
 
+function approximatelyEqual(left: number, right: number, tolerance: number) {
+  return Number.isFinite(left) && Number.isFinite(right) && Math.abs(left - right) <= tolerance
+}
+
+function isExactTest001Request(input: HazardInvestigationInput, latitude: number, longitude: number) {
+  const expectedAoiRadiusKm = TEST_001_AOI.widthM / 1_000
+  const expectedFocusRadiusKm = TEST_001_AOI.pondFocus.requestedFrameWidthM / 2_000
+  return input.caseId === TEST_001_CASE_ID
+    && approximatelyEqual(latitude, TEST_001_AOI.center.lat, COORDINATE_TOLERANCE_DEGREES)
+    && approximatelyEqual(longitude, TEST_001_AOI.center.lon, COORDINATE_TOLERANCE_DEGREES)
+    && approximatelyEqual(input.radiusKm, expectedAoiRadiusKm, RADIUS_TOLERANCE_KM)
+    && input.focusLatitude !== undefined
+    && approximatelyEqual(input.focusLatitude, TEST_001_AOI.pondFocus.lat, COORDINATE_TOLERANCE_DEGREES)
+    && input.focusLongitude !== undefined
+    && approximatelyEqual(input.focusLongitude, TEST_001_AOI.pondFocus.lon, COORDINATE_TOLERANCE_DEGREES)
+    && input.focusRadiusKm !== undefined
+    && approximatelyEqual(input.focusRadiusKm, expectedFocusRadiusKm, RADIUS_TOLERANCE_KM)
+}
+
 function selectYears(startYear: number, endYear: number, mode: TimelineMode) {
   const all = Array.from({ length: endYear - startYear + 1 }, (_, index) => startYear + index)
   if (mode === 'annual' || all.length <= 12) return all
@@ -614,6 +638,63 @@ async function readJson<T>(response: Response) {
   const payload = await response.json().catch(() => ({})) as T & { error?: string }
   if (!response.ok) throw new Error(payload.error ?? `HTTP ${response.status}`)
   return payload
+}
+
+class WorkerAnalysisMismatchError extends Error {}
+
+function analysisMismatch(reason: string): never {
+  throw new WorkerAnalysisMismatchError(`Odrzucono odpowiedź Terra Worker: ${reason}`)
+}
+
+function isoCalendarDate(value: unknown) {
+  if (typeof value !== 'string') return null
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(value)
+  if (!match) return null
+  const parsed = new Date(`${match[1]}T00:00:00Z`)
+  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== match[1] ? null : match[1]
+}
+
+function validateAnalysisResponse(
+  analysis: WorkerAreaAnalysis,
+  input: HazardInvestigationInput,
+  latitude: number,
+  longitude: number,
+) {
+  const requestedPeriod = seasonRange(input.startYear, input.endYear, input.season)
+  const todayUtc = new Date().toISOString().slice(0, 10)
+  const expectedPeriod = {
+    startDate: requestedPeriod.startDate,
+    endDate: requestedPeriod.endDate > todayUtc ? todayUtc : requestedPeriod.endDate,
+  }
+  const area = analysis?.area
+  if (!area
+    || !approximatelyEqual(area.latitude, latitude, COORDINATE_TOLERANCE_DEGREES)
+    || !approximatelyEqual(area.longitude, longitude, COORDINATE_TOLERANCE_DEGREES)
+    || !approximatelyEqual(area.radius_km, input.radiusKm, RADIUS_TOLERANCE_KM)) {
+    analysisMismatch('AOI (współrzędne lub promień) nie odpowiada żądaniu.')
+  }
+  if (input.focusLatitude !== undefined && input.focusLongitude !== undefined) {
+    const focus = analysis.visual_focus
+    if (!focus
+      || !approximatelyEqual(focus.latitude, input.focusLatitude, COORDINATE_TOLERANCE_DEGREES)
+      || !approximatelyEqual(focus.longitude, input.focusLongitude, COORDINATE_TOLERANCE_DEGREES)
+      || (input.focusRadiusKm !== undefined && !approximatelyEqual(focus.radius_km, input.focusRadiusKm, RADIUS_TOLERANCE_KM))) {
+      analysisMismatch('współrzędne lub promień zbliżenia nie odpowiadają żądaniu.')
+    }
+  }
+  if (analysis.period?.start_date !== expectedPeriod.startDate || analysis.period?.end_date !== expectedPeriod.endDate) {
+    analysisMismatch('okres odpowiedzi nie odpowiada żądanemu okresowi i sezonowi.')
+  }
+  if (analysis.analysis_images !== undefined && !Array.isArray(analysis.analysis_images)) {
+    analysisMismatch('lista wejść obrazu modelu ma nieprawidłowy format.')
+  }
+  for (const image of analysis.analysis_images ?? []) {
+    const imageDate = isoCalendarDate(image?.date)
+    if (!imageDate || imageDate < expectedPeriod.startDate || imageDate > expectedPeriod.endDate) {
+      analysisMismatch(`wejście obrazu modelu ma datę spoza żądanego okresu: ${String(image?.date ?? 'brak daty')}.`)
+    }
+  }
+  return analysis
 }
 
 export async function analyzeMultiyearImagery(input: HazardInvestigationInput, latitude: number, longitude: number) {
@@ -641,7 +722,8 @@ export async function analyzeMultiyearImagery(input: HazardInvestigationInput, l
       } : {}),
     }),
   })
-  return readJson<WorkerAreaAnalysis>(response)
+  const analysis = await readJson<WorkerAreaAnalysis>(response)
+  return validateAnalysisResponse(analysis, input, latitude, longitude)
 }
 
 export async function retrieveMultiyearImagery(input: HazardInvestigationInput, latitude: number, longitude: number) {
@@ -689,14 +771,6 @@ function sourceProvenance(dataset: string, area: string, operation: string, sour
     uncertainty,
     requestParameters: { ...parameters, sourceUrl },
   }
-}
-
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const radians = (value: number) => value * Math.PI / 180
-  const deltaLat = radians(lat2 - lat1)
-  const deltaLon = radians(lon2 - lon1)
-  const a = Math.sin(deltaLat / 2) ** 2 + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(deltaLon / 2) ** 2
-  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 export function verifiedOriginalModelImageCount(analysis: WorkerAreaAnalysis | null) {
@@ -903,7 +977,10 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
   }
 
   const areaLabel = `${resolvedName}; ${latitude.toFixed(6)},${longitude.toFixed(6)}; radius ${input.radiusKm} km`
-  const isTest001 = haversineKm(latitude, longitude, 53.5914, 19.010717) <= 1
+  const isTest001 = isExactTest001Request(input, latitude, longitude)
+  if (input.caseId === TEST_001_CASE_ID && !isTest001) {
+    throw new Error('TEST 001 wymaga jawnego identyfikatora oraz dokładnego AOI 53.594595, 19.000140 / 2 km i zbliżenia 53.594595, 19.000140 / 0,25 km.')
+  }
   const needsWaterAnalogues = input.hazardTypes.some(item => WATER_HAZARDS.has(item))
   const analysisInput: HazardInvestigationInput = isTest001 ? {
     ...input,
@@ -935,6 +1012,7 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
   ])
 
   const analysis = analysisSettled.status === 'fulfilled' ? analysisSettled.value : null
+  const analysisRejectedAsMismatch = analysisSettled.status === 'rejected' && analysisSettled.reason instanceof WorkerAnalysisMismatchError
   const visuallyInspectedByModel = verifiedOriginalModelImageCount(analysis)
   const requestedYears = selectYears(input.startYear, input.endYear, input.timelineMode)
   const gallery = gallerySettled.status === 'fulfilled' ? gallerySettled.value : {
@@ -952,7 +1030,7 @@ export async function runHazardInvestigation(input: HazardInvestigationInput): P
     'terra-area-analysis',
     'Wieloletnia analiza obrazów',
     'Terra Worker · NASA GIBS · USGS Landsat · Copernicus Data Space',
-    analysis && visuallyInspectedByModel > 0 ? 'PASS' : analysis ? 'INSUFFICIENT_DATA' : 'NOT_CONNECTED',
+    analysis && visuallyInspectedByModel > 0 ? 'PASS' : analysis || analysisRejectedAsMismatch ? 'INSUFFICIENT_DATA' : 'NOT_CONNECTED',
     'Model może analizować tylko jawnie oznaczone oryginalne oficjalne produkty satelitarne; katalog i produkty pochodne pozostają oddzielone.',
     analysis ? `${visuallyInspectedByModel} oryginalnych produktów satelitarnych przeszło bramkę wejścia modelu; ${analysis.landsat_catalog.matched} scen pasuje w katalogu Landsat.` : analysisSettled.status === 'rejected' ? String(analysisSettled.reason) : 'Brak odpowiedzi.',
     `${TERRA_EVIDENCE_API_URL}/research/analyze`,
