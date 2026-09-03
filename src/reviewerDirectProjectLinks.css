@@ -1,0 +1,51 @@
+.reviewer-direct-project-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.reviewer-direct-project-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: 14px 18px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 14px;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 800;
+  letter-spacing: .02em;
+  text-align: center;
+  box-shadow: 0 12px 28px rgba(0,0,0,.24);
+  transition: transform .16s ease, filter .16s ease, border-color .16s ease;
+}
+
+.reviewer-direct-project-link:hover,
+.reviewer-direct-project-link:focus-visible {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  border-color: rgba(255,255,255,.4);
+  outline: none;
+}
+
+.reviewer-direct-project-link--terra {
+  background: linear-gradient(135deg, #078fb0, #1766cc);
+}
+
+.reviewer-direct-project-link--cube {
+  background: linear-gradient(135deg, #38448f, #713c91);
+}
+
+@media (max-width: 680px) {
+  .reviewer-direct-project-links {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .reviewer-direct-project-link {
+    min-height: 50px;
+    font-size: 14px;
+  }
+}

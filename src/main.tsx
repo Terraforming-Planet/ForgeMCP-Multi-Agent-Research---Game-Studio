@@ -4,8 +4,10 @@ import { HashRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
 import { installReviewerCubePublicEntry } from './reviewerCubePublicEntry'
+import { installReviewerDirectProjectLinks } from './reviewerDirectProjectLinks'
 
 installReviewerCubePublicEntry()
+installReviewerDirectProjectLinks()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
