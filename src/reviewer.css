@@ -1,1 +1,659 @@
-.reviewer-home{display:grid;gap:22px;padding-bottom:34px}.reviewer-hero{position:relative;overflow:hidden;padding:38px clamp(18px,4vw,58px) 30px;border:1px solid #245d7a;border-radius:22px;background:radial-gradient(circle at 12% 0%,#0d566f66,transparent 36%),radial-gradient(circle at 88% 10%,#5c3b8860,transparent 34%),linear-gradient(145deg,#04111f,#071a2d 52%,#071321);box-shadow:0 18px 45px #0008}.reviewer-badge{display:inline-flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid #4ed9ff66;border-radius:999px;background:#071c2b;color:#7eeaff;font-size:12px;font-weight:900;letter-spacing:.12em}.reviewer-hero h1{margin:14px 0 4px;font-size:clamp(42px,8vw,86px);line-height:.9;letter-spacing:-.055em}.reviewer-hero h1 span{color:#49e6ff}.reviewer-tagline{max-width:950px;margin:14px 0 0;color:#e6f4ff;font-size:clamp(17px,2.2vw,25px);line-height:1.35}.reviewer-subline{max-width:980px;margin:12px 0 0;color:#a9c8da;line-height:1.6}.reviewer-truthbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:20px}.reviewer-truthbar span{padding:11px 12px;border:1px solid #284f67;border-radius:12px;background:#061522cc;color:#cfe8f6;font-size:12px;font-weight:800;text-align:center}.reviewer-codex{margin-top:15px;padding:11px 13px;border-left:3px solid #52e8b2;background:#071a1ccc;color:#c9f4e5;font-size:13px;line-height:1.5}.reviewer-codex strong{color:#fff}.reviewer-live-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:16px}.reviewer-live-panel{min-width:0;overflow:hidden;border:1px solid #2a5c78;border-radius:18px;background:#061321;box-shadow:0 14px 34px #0007}.reviewer-live-panel--cube{border-color:#5b4f83}.reviewer-live-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding:16px 17px 13px;border-bottom:1px solid #183d53;background:#071b2b}.reviewer-live-panel--cube .reviewer-live-head{background:#111328;border-bottom-color:#393357}.reviewer-live-head p{margin:0 0 3px;color:#62defd;font-size:11px;font-weight:900;letter-spacing:.12em}.reviewer-live-panel--cube .reviewer-live-head p{color:#b9a4ff}.reviewer-live-head h2{margin:0;font-size:20px}.reviewer-live-head a{white-space:nowrap;color:#d8f7ff;font-size:12px;font-weight:800;text-decoration:none}.reviewer-frame{position:relative;height:min(54vh,560px);min-height:420px;background:#02070d}.reviewer-frame iframe{width:100%;height:100%;border:0;background:#02070d}.reviewer-frame-note{display:flex;gap:8px;align-items:flex-start;padding:12px 15px;border-top:1px solid #173a4e;color:#a8c5d5;font-size:12px;line-height:1.5}.reviewer-frame-note b{color:#fff}.reviewer-section{padding:22px;border:1px solid #254f67;border-radius:18px;background:#071521}.reviewer-section-heading{display:flex;justify-content:space-between;gap:18px;align-items:end;margin-bottom:14px}.reviewer-section-heading p{margin:0;color:#58defd;font-size:11px;font-weight:900;letter-spacing:.12em}.reviewer-section-heading h2{margin:4px 0 0;font-size:clamp(23px,3vw,34px)}.reviewer-section-heading small{max-width:430px;color:#91adbd;line-height:1.45}.reviewer-change-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.reviewer-change-card{padding:15px;border:1px solid #24485d;border-radius:14px;background:#05101a}.reviewer-change-card span{color:#62e4ff;font-size:10px;font-weight:900;letter-spacing:.11em}.reviewer-change-card h3{margin:7px 0 7px;font-size:16px}.reviewer-change-card p{margin:0;color:#a9c4d3;font-size:12px;line-height:1.55}.reviewer-change-card strong{color:#edfaff}.reviewer-change-card--cube span{color:#b9a5ff}.reviewer-change-card--verify span{color:#67edb6}.reviewer-demo-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.reviewer-step{position:relative;padding:18px 16px 16px;border:1px solid #28546e;border-radius:15px;background:linear-gradient(160deg,#071a28,#050e17)}.reviewer-step b{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#0f7597;color:#fff}.reviewer-step h3{margin:10px 0 6px}.reviewer-step p{margin:0 0 12px;color:#a9c5d5;font-size:12px;line-height:1.5}.reviewer-step a{display:inline-flex;padding:8px 10px;border:1px solid #36718f;border-radius:9px;background:#0b2a40;color:#fff;text-decoration:none;font-size:12px;font-weight:800}.reviewer-proofline{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}.reviewer-proofline span{padding:7px 10px;border:1px solid #2c5a73;border-radius:999px;background:#061725;color:#b9d8e8;font-size:11px;font-weight:800}.reviewer-proofline .pass{border-color:#2b795b;color:#8ef0c0;background:#08251b}.reviewer-bottom-actions{display:flex;flex-wrap:wrap;gap:9px;justify-content:center}.reviewer-bottom-actions a{padding:10px 13px;border:1px solid #326b87;border-radius:10px;background:#0b263a;color:#fff;text-decoration:none;font-weight:800}.reviewer-bottom-actions a.primary{background:#087ca1;border-color:#51dbff}.reviewer-bottom-actions a.cube{background:#34305f;border-color:#8a79c9}@media(max-width:1100px){.reviewer-live-grid{grid-template-columns:1fr}.reviewer-change-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.reviewer-frame{height:520px}.reviewer-truthbar{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:720px){.reviewer-home{gap:14px}.reviewer-hero{padding:25px 15px 20px;border-radius:15px}.reviewer-truthbar,.reviewer-change-grid,.reviewer-demo-steps{grid-template-columns:1fr}.reviewer-live-head{display:grid}.reviewer-live-head a{white-space:normal}.reviewer-frame{height:430px;min-height:360px}.reviewer-section{padding:15px}.reviewer-section-heading{display:grid;align-items:start}.reviewer-bottom-actions{justify-content:stretch}.reviewer-bottom-actions a{flex:1;text-align:center}.desktop-nav>a:nth-of-type(4),.desktop-nav>a:nth-of-type(5){display:none}}
+.reviewer-home {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 34px;
+}
+
+/* Reviewer-first hero: restore the stronger visual direction from the earlier ForgeMCP landing page. */
+.reviewer-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: clamp(520px, 69vh, 760px);
+  padding: clamp(34px, 6vw, 78px) clamp(20px, 5vw, 72px) 190px;
+  border: 1px solid #245d7a;
+  border-radius: 24px;
+  background:
+    linear-gradient(90deg, rgba(2, 8, 20, .96) 0%, rgba(2, 8, 20, .87) 42%, rgba(2, 8, 20, .35) 75%, rgba(2, 8, 20, .18) 100%),
+    linear-gradient(0deg, rgba(2, 8, 20, .9), transparent 55%),
+    url('./assets/forgemcp-hero-background.webp') center / cover no-repeat;
+  box-shadow: 0 22px 60px #0009;
+}
+
+.reviewer-hero::before {
+  content: 'WEBMCP ORCHESTRATION · EARTH + GAME AI';
+  display: block;
+  margin-bottom: 18px;
+  color: #75e8ff;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .16em;
+}
+
+.reviewer-badge,
+.reviewer-subline,
+.reviewer-truthbar {
+  display: none;
+}
+
+.reviewer-hero h1 {
+  max-width: 760px;
+  margin: 0;
+  font-size: clamp(58px, 9.4vw, 112px);
+  line-height: .84;
+  letter-spacing: -.065em;
+  text-shadow: 0 4px 28px #000c;
+}
+
+.reviewer-hero h1 span {
+  color: #67efc0;
+}
+
+.reviewer-hero h1::after {
+  content: 'MULTI-AGENT RESEARCH × GAME STUDIO';
+  display: block;
+  margin-top: 20px;
+  color: #f3f7ff;
+  font-size: clamp(16px, 2.2vw, 28px);
+  line-height: 1.15;
+  letter-spacing: .035em;
+}
+
+.reviewer-tagline {
+  max-width: 760px;
+  margin: 22px 0 0;
+  color: #d7e9f7;
+  font-size: clamp(16px, 1.8vw, 22px);
+  line-height: 1.5;
+  text-shadow: 0 2px 16px #000d;
+}
+
+.reviewer-codex {
+  max-width: 760px;
+  margin-top: 20px;
+  padding: 11px 14px;
+  border: 1px solid rgba(105, 240, 190, .28);
+  border-left: 3px solid #69efbd;
+  border-radius: 11px;
+  background: rgba(3, 18, 24, .72);
+  color: #c9f4e5;
+  font-size: 12px;
+  line-height: 1.5;
+  backdrop-filter: blur(10px);
+}
+
+.reviewer-codex strong {
+  color: #fff;
+}
+
+/* Re-use the existing bottom actions as the two clear hero entrances. */
+.reviewer-hero,
+.reviewer-bottom-actions {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.reviewer-bottom-actions {
+  z-index: 3;
+  align-self: end;
+  justify-self: start;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 12px;
+  width: min(690px, calc(100% - clamp(40px, 10vw, 144px)));
+  margin: 0 0 42px clamp(20px, 5vw, 72px);
+}
+
+.reviewer-bottom-actions a {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 18px;
+  border: 1px solid #4fd9ff;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #087ca1, #1452b2);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  text-align: center;
+  text-decoration: none;
+  box-shadow: 0 12px 30px #0007, inset 0 1px #ffffff20;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.reviewer-bottom-actions a.cube {
+  border-color: #aa91ff;
+  background: linear-gradient(135deg, #34305f, #5a3286);
+}
+
+.reviewer-bottom-actions a:nth-child(n+3) {
+  display: none;
+}
+
+.reviewer-bottom-actions a:hover,
+.reviewer-bottom-actions a:focus-visible {
+  transform: translateY(-2px);
+  text-decoration: none;
+  box-shadow: 0 16px 34px #0009, 0 0 24px #50dfff25;
+}
+
+/* The two project panels are now click-through visual cards, not tiny embedded websites to operate. */
+.reviewer-live-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.reviewer-live-panel {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #2a5c78;
+  border-radius: 19px;
+  background: #061321;
+  box-shadow: 0 14px 34px #0007;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.reviewer-live-panel--cube {
+  border-color: #5b4f83;
+}
+
+.reviewer-live-panel:hover,
+.reviewer-live-panel:focus-within {
+  transform: translateY(-2px);
+  border-color: #58dfff;
+  box-shadow: 0 20px 42px #0009;
+}
+
+.reviewer-live-panel--cube:hover,
+.reviewer-live-panel--cube:focus-within {
+  border-color: #a58cff;
+}
+
+.reviewer-live-head {
+  min-height: 78px;
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 17px 13px;
+  border-bottom: 1px solid #183d53;
+  background: #071b2b;
+}
+
+.reviewer-live-panel--cube .reviewer-live-head {
+  background: #111328;
+  border-bottom-color: #393357;
+}
+
+.reviewer-live-head p {
+  margin: 0 0 3px;
+  color: #62defd;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.reviewer-live-panel--cube .reviewer-live-head p {
+  color: #b9a4ff;
+}
+
+.reviewer-live-head h2 {
+  margin: 0;
+  font-size: clamp(18px, 2vw, 23px);
+}
+
+/* Make the entire preview card a single, obvious link. The iframe stays only as the visual. */
+.reviewer-live-head a {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  color: transparent;
+  font-size: 0;
+  text-decoration: none;
+}
+
+.reviewer-live-head a::after {
+  content: 'TRY TERRA →';
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  padding: 8px 11px;
+  border: 1px solid #4fdcff88;
+  border-radius: 999px;
+  background: rgba(4, 24, 36, .9);
+  color: #e9fbff;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  box-shadow: 0 6px 18px #0007;
+}
+
+.reviewer-live-panel--cube .reviewer-live-head a::after {
+  content: 'TRY CUBE →';
+  border-color: #a58cff99;
+  background: rgba(24, 20, 48, .92);
+}
+
+.reviewer-frame {
+  position: relative;
+  height: clamp(290px, 37vw, 430px);
+  min-height: 0;
+  overflow: hidden;
+  background: #02070d;
+}
+
+.reviewer-frame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(0deg, rgba(2, 7, 13, .12), transparent 25%);
+}
+
+.reviewer-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #02070d;
+  pointer-events: none;
+  user-select: none;
+  filter: saturate(.96) contrast(1.03);
+}
+
+.reviewer-frame-note {
+  min-height: 72px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 12px 15px;
+  border-top: 1px solid #173a4e;
+  color: #a8c5d5;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.reviewer-frame-note b {
+  flex: 0 0 auto;
+  color: #fff;
+}
+
+.reviewer-section {
+  padding: 22px;
+  border: 1px solid #254f67;
+  border-radius: 18px;
+  background: #071521;
+}
+
+.reviewer-section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.reviewer-section-heading p {
+  margin: 0;
+  color: #58defd;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.reviewer-section-heading h2 {
+  margin: 4px 0 0;
+  font-size: clamp(23px, 3vw, 34px);
+}
+
+.reviewer-section-heading small {
+  max-width: 430px;
+  color: #91adbd;
+  line-height: 1.45;
+}
+
+.reviewer-change-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.reviewer-change-card {
+  padding: 15px;
+  border: 1px solid #24485d;
+  border-radius: 14px;
+  background: #05101a;
+}
+
+.reviewer-change-card span {
+  color: #62e4ff;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .11em;
+}
+
+.reviewer-change-card h3 {
+  margin: 7px 0;
+  font-size: 16px;
+}
+
+.reviewer-change-card p {
+  margin: 0;
+  color: #a9c4d3;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.reviewer-change-card strong {
+  color: #edfaff;
+}
+
+.reviewer-change-card--cube span {
+  color: #b9a5ff;
+}
+
+.reviewer-change-card--verify span {
+  color: #67edb6;
+}
+
+.reviewer-demo-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.reviewer-step {
+  position: relative;
+  padding: 18px 16px 16px;
+  border: 1px solid #28546e;
+  border-radius: 15px;
+  background: linear-gradient(160deg, #071a28, #050e17);
+}
+
+.reviewer-step b {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #0f7597;
+  color: #fff;
+}
+
+.reviewer-step h3 {
+  margin: 10px 0 6px;
+}
+
+.reviewer-step p {
+  margin: 0 0 12px;
+  color: #a9c5d5;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.reviewer-step a {
+  display: inline-flex;
+  padding: 8px 10px;
+  border: 1px solid #36718f;
+  border-radius: 9px;
+  background: #0b2a40;
+  color: #fff;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.reviewer-proofline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.reviewer-proofline span {
+  padding: 7px 10px;
+  border: 1px solid #2c5a73;
+  border-radius: 999px;
+  background: #061725;
+  color: #b9d8e8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.reviewer-proofline .pass {
+  border-color: #2b795b;
+  color: #8ef0c0;
+  background: #08251b;
+}
+
+/* Header polish shared by desktop/tablet. Mobile keeps the existing bottom navigation. */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 11px clamp(14px, 3vw, 34px);
+  border-bottom: 1px solid rgba(91, 207, 245, .19);
+  background: rgba(2, 8, 18, .88);
+  backdrop-filter: blur(18px);
+}
+
+.site-brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: #eefaff;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -.03em;
+  text-decoration: none;
+}
+
+.site-brand span {
+  color: #55e2ff;
+}
+
+.site-brand small {
+  margin-left: 6px;
+  color: #7896ad;
+  font-size: 8px;
+  letter-spacing: .12em;
+}
+
+.desktop-nav {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.desktop-nav > a,
+.desktop-more > button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 9px;
+  color: #c8dce9;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+@media (max-width: 1100px) {
+  .reviewer-live-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .reviewer-change-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .reviewer-demo-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .desktop-nav {
+    display: none;
+  }
+
+  .site-header {
+    min-height: 54px;
+  }
+
+  .site-brand small {
+    display: none;
+  }
+
+  .reviewer-hero {
+    min-height: 600px;
+    padding-bottom: 188px;
+  }
+
+  .reviewer-live-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reviewer-frame {
+    height: clamp(300px, 58vw, 430px);
+  }
+
+  .reviewer-demo-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .reviewer-home {
+    gap: 14px;
+    padding-bottom: calc(86px + env(safe-area-inset-bottom));
+  }
+
+  .reviewer-hero {
+    min-height: 590px;
+    padding: 34px 17px 190px;
+    border-radius: 16px;
+    background-position: 62% center;
+  }
+
+  .reviewer-hero::before {
+    margin-bottom: 14px;
+    font-size: 9px;
+    letter-spacing: .12em;
+  }
+
+  .reviewer-hero h1 {
+    font-size: clamp(52px, 18vw, 78px);
+  }
+
+  .reviewer-hero h1::after {
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.25;
+  }
+
+  .reviewer-tagline {
+    margin-top: 18px;
+    font-size: 15px;
+  }
+
+  .reviewer-codex {
+    margin-top: 16px;
+    font-size: 11px;
+  }
+
+  .reviewer-bottom-actions {
+    grid-template-columns: 1fr;
+    width: calc(100% - 34px);
+    margin: 0 17px 24px;
+  }
+
+  .reviewer-bottom-actions a {
+    min-height: 52px;
+    font-size: 14px;
+  }
+
+  .reviewer-live-head {
+    min-height: 88px;
+    padding: 15px 14px;
+  }
+
+  .reviewer-live-head h2 {
+    max-width: calc(100% - 112px);
+    font-size: 18px;
+  }
+
+  .reviewer-live-head a::after {
+    top: 14px;
+    right: 12px;
+    font-size: 10px;
+  }
+
+  .reviewer-frame {
+    height: 320px;
+  }
+
+  .reviewer-frame-note {
+    display: grid;
+    min-height: 0;
+    padding: 11px 13px;
+    font-size: 11px;
+  }
+
+  .reviewer-section {
+    padding: 15px;
+  }
+
+  .reviewer-section-heading {
+    display: grid;
+    align-items: start;
+  }
+
+  .reviewer-change-grid,
+  .reviewer-demo-steps {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 430px) {
+  .reviewer-hero {
+    min-height: 575px;
+    background-position: 66% center;
+  }
+
+  .reviewer-hero h1 {
+    font-size: clamp(48px, 17vw, 68px);
+  }
+
+  .reviewer-tagline {
+    max-width: 92%;
+  }
+
+  .reviewer-frame {
+    height: 285px;
+  }
+
+  .reviewer-live-head p {
+    font-size: 9px;
+  }
+
+  .reviewer-live-head h2 {
+    font-size: 16px;
+  }
+
+  .reviewer-live-head a::after {
+    padding: 7px 9px;
+    font-size: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reviewer-live-panel,
+  .reviewer-bottom-actions a {
+    transition: none;
+  }
+}
