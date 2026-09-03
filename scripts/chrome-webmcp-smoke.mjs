@@ -75,6 +75,25 @@ async function connectCdp(webSocketDebuggerUrl) {
   return { socket, call }
 }
 
+async function waitForNavigation(call, expectedUrl, deadline) {
+  const expectedBase = expectedUrl.split('#')[0]
+  let lastState
+  while (Date.now() < deadline) {
+    const evaluated = await call('Runtime.evaluate', {
+      expression: `({ href: location.href, readyState: document.readyState, title: document.title })`,
+      returnByValue: true,
+    })
+    lastState = evaluated.result?.value
+    if (
+      typeof lastState?.href === 'string'
+      && lastState.href.startsWith(expectedBase)
+      && ['interactive', 'complete'].includes(lastState.readyState)
+    ) return lastState
+    await sleep(250)
+  }
+  throw new Error(`Timed out navigating Chrome to ${expectedUrl}; last page state: ${JSON.stringify(lastState)}`)
+}
+
 const chromeArgs = [
   '--no-first-run',
   '--no-default-browser-check',
@@ -88,7 +107,7 @@ const chromeArgs = [
   '--enable-features=WebMCP,WebMCPTesting,DevToolsWebMCPSupport',
   `--user-data-dir=/tmp/forgemcp-chrome-webmcp-${process.pid}`,
   '--window-size=1440,1200',
-  targetUrl,
+  'about:blank',
 ]
 
 let chrome
@@ -100,18 +119,24 @@ try {
   chrome.stderr.on('data', chunk => process.stderr.write(`[chrome] ${chunk}`))
 
   const deadline = Date.now() + timeoutMs
-  const pages = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, deadline)
-  let page = pages.find(item => item.type === 'page' && item.url.startsWith(targetUrl.split('#')[0]))
+  let pages = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, deadline)
+  let page = pages.find(item => item.type === 'page')
   while (!page && Date.now() < deadline) {
     await sleep(250)
-    const refreshed = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, deadline)
-    page = refreshed.find(item => item.type === 'page' && item.url.startsWith(targetUrl.split('#')[0]))
+    pages = await waitForJson(`http://127.0.0.1:${debugPort}/json/list`, deadline)
+    page = pages.find(item => item.type === 'page')
   }
-  if (!page?.webSocketDebuggerUrl) throw new Error(`Chrome page target not found for ${targetUrl}`)
+  if (!page?.webSocketDebuggerUrl) throw new Error('Chrome page target not found')
 
   const { socket, call } = await connectCdp(page.webSocketDebuggerUrl)
   try {
+    await call('Page.enable')
     await call('Runtime.enable')
+    const navigation = await call('Page.navigate', { url: targetUrl })
+    if (navigation.errorText) throw new Error(`Chrome navigation failed: ${navigation.errorText}`)
+    const pageState = await waitForNavigation(call, targetUrl, deadline)
+    console.log(`Chrome page ready: ${pageState.href} (${pageState.readyState})`)
+
     const expression = String.raw`(async () => {
       const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
       const parse = value => {
@@ -143,9 +168,8 @@ try {
 
       const execute = async (name, input) => {
         const tool = tools.find(candidate => candidate.name === name);
-        // Chrome's current Imperative API documentation specifies a valid JSON
-        // string for executeTool arguments. The browser parses that string back
-        // into the input object before invoking the page's registered handler.
+        // Chrome 151 currently expects the Imperative API input as a valid JSON
+        // string and parses it before invoking the page's registered handler.
         return parse(await mc.executeTool(tool, JSON.stringify(input)));
       };
 
