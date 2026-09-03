@@ -4,7 +4,7 @@ import type { ProceduralAssetBundle } from '../integrations/commerce/proceduralA
 
 type Point3 = [number, number, number]
 type Mat4 = Float32Array
-type RendererMode = 'loading-texture' | 'webgl-textured' | 'canvas-fallback' | 'unavailable'
+type RendererMode = 'loading-texture' | 'webgl-textured' | 'webgl-material-fallback' | 'canvas-fallback' | 'unavailable'
 
 const VERTEX_SHADER = `
   attribute vec3 a_position;
@@ -35,10 +35,13 @@ const FRAGMENT_SHADER = `
 
   void main() {
     vec3 normal = normalize(v_normal);
-    float diffuse = max(dot(normal, normalize(u_light_direction)), 0.0);
-    float rim = pow(1.0 - max(normal.z, 0.0), 2.0) * 0.16;
+    vec3 light = normalize(u_light_direction);
+    float diffuse = max(dot(normal, light), 0.0);
+    float halfLambert = diffuse * 0.5 + 0.5;
+    float rim = pow(1.0 - max(normal.z, 0.0), 2.0) * 0.14;
+    float highlight = pow(max(dot(normal, normalize(light + vec3(0.0, 0.0, 1.0))), 0.0), 28.0) * 0.12;
     vec4 albedo = texture2D(u_texture, v_texcoord);
-    vec3 lit = albedo.rgb * (0.32 + diffuse * 0.72) + albedo.rgb * rim;
+    vec3 lit = albedo.rgb * (0.24 + halfLambert * 0.72) + albedo.rgb * rim + vec3(highlight);
     gl_FragColor = vec4(lit, albedo.a);
   }
 `
@@ -155,7 +158,7 @@ function resizeCanvas(canvas: HTMLCanvasElement) {
   const rect = canvas.getBoundingClientRect()
   const width = Math.max(280, rect.width)
   const height = Math.max(300, rect.height)
-  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2.5)
   const drawingWidth = Math.round(width * pixelRatio)
   const drawingHeight = Math.round(height * pixelRatio)
   if (canvas.width !== drawingWidth || canvas.height !== drawingHeight) {
@@ -407,13 +410,20 @@ export function ProceduralAssetViewer({ bundle, stale = false }: { bundle: Proce
       objectUrl = URL.createObjectURL(new Blob([textureBytes], { type: bundle.texture.mimeType }))
       image = new Image()
       image.decoding = 'async'
-      image.onload = () => {
-        if (disposed || !gl || !program || !texture || !image) return
-        gl.activeTexture(gl.TEXTURE0)
-        gl.bindTexture(gl.TEXTURE_2D, texture)
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
-        gl.generateMipmap(gl.TEXTURE_2D)
-        setRendererMode('webgl-textured')
+
+      function enableAnisotropicFiltering() {
+        if (!gl) return
+        const anisotropic = gl.getExtension('EXT_texture_filter_anisotropic')
+          ?? gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic')
+          ?? gl.getExtension('MOZ_EXT_texture_filter_anisotropic')
+        if (!anisotropic) return
+        const maximum = Number(gl.getParameter(anisotropic.MAX_TEXTURE_MAX_ANISOTROPY_EXT)) || 1
+        gl.texParameterf(gl.TEXTURE_2D, anisotropic.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, maximum))
+      }
+
+      function startWebglAnimation(mode: 'webgl-textured' | 'webgl-material-fallback') {
+        if (!gl || !program || disposed) return
+        setRendererMode(mode)
         let lastTime = performance.now()
 
         function draw(time: number) {
@@ -441,8 +451,25 @@ export function ProceduralAssetViewer({ bundle, stale = false }: { bundle: Proce
 
         animationFrame = window.requestAnimationFrame(draw)
       }
+
+      image.onload = () => {
+        if (disposed || !gl || !program || !texture || !image) return
+        gl.activeTexture(gl.TEXTURE0)
+        gl.bindTexture(gl.TEXTURE_2D, texture)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
+        gl.generateMipmap(gl.TEXTURE_2D)
+        enableAnisotropicFiltering()
+        startWebglAnimation('webgl-textured')
+      }
       image.onerror = () => {
-        if (!disposed) setRendererMode('unavailable')
+        if (disposed || !gl || !texture) return
+        const fallbackRgb = rgb(bundle.preview.primaryColor)
+        gl.activeTexture(gl.TEXTURE0)
+        gl.bindTexture(gl.TEXTURE_2D, texture)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([...fallbackRgb, 255]))
+        startWebglAnimation('webgl-material-fallback')
       }
       image.src = objectUrl
     } catch {
@@ -475,8 +502,10 @@ export function ProceduralAssetViewer({ bundle, stale = false }: { bundle: Proce
 
   function pointerMove(event: ReactPointerEvent<HTMLCanvasElement>) {
     if (!dragRef.current) return
-    angleRef.current.yaw += (event.clientX - dragRef.current.x) * 0.012
-    angleRef.current.pitch = Math.max(-1.1, Math.min(0.65, angleRef.current.pitch + (event.clientY - dragRef.current.y) * 0.008))
+    const deltaX = event.clientX - dragRef.current.x
+    const deltaY = event.clientY - dragRef.current.y
+    angleRef.current.yaw -= deltaX * 0.012
+    angleRef.current.pitch = Math.max(-1.1, Math.min(0.65, angleRef.current.pitch - deltaY * 0.008))
     dragRef.current = { x: event.clientX, y: event.clientY }
   }
 
@@ -486,11 +515,13 @@ export function ProceduralAssetViewer({ bundle, stale = false }: { bundle: Proce
 
   const rendererLabel = rendererMode === 'webgl-textured'
     ? 'TEXTURED WEBGL'
-    : rendererMode === 'canvas-fallback'
-      ? 'CANVAS 2D FALLBACK'
-      : rendererMode === 'unavailable'
-        ? 'PREVIEW UNAVAILABLE'
-        : 'LOADING PNG TEXTURE'
+    : rendererMode === 'webgl-material-fallback'
+      ? 'WEBGL MATERIAL FALLBACK'
+      : rendererMode === 'canvas-fallback'
+        ? 'CANVAS 2D FALLBACK'
+        : rendererMode === 'unavailable'
+          ? 'PREVIEW UNAVAILABLE'
+          : 'LOADING PNG TEXTURE'
 
   return (
     <div className={`procedural-viewer ${stale ? 'is-stale' : ''}`}>
@@ -502,6 +533,7 @@ export function ProceduralAssetViewer({ bundle, stale = false }: { bundle: Proce
         onPointerMove={pointerMove}
         onPointerUp={pointerUp}
         onPointerCancel={pointerUp}
+        style={{ touchAction: 'none' }}
       />
       <div className="procedural-viewer__hud">
         <span><b>{rendererLabel}</b> · {bundle.preview.label}</span>
