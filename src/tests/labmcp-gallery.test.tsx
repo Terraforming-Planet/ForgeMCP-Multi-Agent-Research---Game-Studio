@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LabMcp } from '../components/LabMcp'
 import type { HazardInvestigationResult } from '../integrations/terra/hazardInvestigation'
+import { TEST_001_COMPARISON_IMAGES } from '../integrations/terra/labmcp'
 import { getTool } from '../webmcp/registry'
 
 vi.mock('../webmcp/registry', () => ({ getTool: vi.fn() }))
@@ -115,6 +116,49 @@ describe('LabTerra image gallery resilience', () => {
 
   afterEach(() => cleanup())
 
+  it('shows the two pinned TEST 001 sources before a run, keeps a source fallback, and runs the exact pinned case', async () => {
+    const execute = vi.fn().mockResolvedValue({ state: 'WARNING', verification: 'WARNING', data: investigationResult() })
+    vi.mocked(getTool).mockReturnValue({ execute } as never)
+
+    render(<MemoryRouter><LabMcp /></MemoryRouter>)
+
+    const baseline = screen.getByRole('region', { name: 'Przypięty przykład oryginalnych zdjęć satelitarnych TEST 001' })
+    const baselineView = within(baseline)
+    const images = baselineView.getAllByRole('img') as HTMLImageElement[]
+    expect(images).toHaveLength(2)
+    expect(images.map(image => image.getAttribute('src'))).toEqual(TEST_001_COMPARISON_IMAGES.map(image => image.url))
+    expect(baselineView.getAllByText('ORYGINALNY OFICJALNY PRODUKT SATELITARNY · NIE AI')).toHaveLength(2)
+
+    fireEvent.error(images[0])
+
+    const sourceFallback = await baselineView.findByRole('link', { name: /Podgląd nie został pobrany przez tę przeglądarkę/ })
+    expect(sourceFallback).toHaveAttribute('href', TEST_001_COMPARISON_IMAGES[0].url)
+    expect(baselineView.getAllByRole('img')).toHaveLength(1)
+    expect(baselineView.getByAltText('Oryginalny obraz satelitarny TEST 001 z 2026 roku')).toBeInTheDocument()
+
+    fireEvent.click(baselineView.getByRole('button', { name: 'Uruchom pełne dochodzenie TEST 001' }))
+
+    await waitFor(() => expect(execute).toHaveBeenCalledTimes(1))
+    expect(execute).toHaveBeenCalledWith({
+      regionQuery: 'Staw leśny przy Jeziorze Kuchnia, Polska — TEST 001',
+      latitude: 53.594595,
+      longitude: 19.00014,
+      radiusKm: 2,
+      startYear: 1990,
+      endYear: new Date().getUTCFullYear(),
+      season: 'autumn',
+      hazardTypes: ['water-loss', 'flow-obstruction', 'terrain-change'],
+      depth: 'deep',
+      timelineMode: 'annual',
+      spatialMode: 'overview',
+      referenceQuery: 'Toruń',
+      caseId: 'test-001-forest-pond-kuchnia',
+      focusLatitude: 53.594595,
+      focusLongitude: 19.00014,
+      focusRadiusKm: 0.25,
+    })
+  })
+
   it('reads dimensions synchronously and keeps the result visible after image load', async () => {
     render(<MemoryRouter><LabMcp /></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: 'Uruchom przebieg 1/10' }))
@@ -201,7 +245,8 @@ describe('LabTerra image gallery resilience', () => {
     expect(screen.getByText(/≈ 1.77 ha/)).toBeInTheDocument()
     expect(screen.getByAltText('Oryginalny obraz satelitarny Landsat-5 obszaru stawu TEST 001 z 2000 roku')).toBeInTheDocument()
     expect(screen.getByAltText('Oryginalny obraz satelitarny Sentinel-2B obszaru stawu TEST 001 z 2026 roku')).toBeInTheDocument()
-    expect(screen.getAllByText('ORYGINALNY OFICJALNY PRODUKT SATELITARNY · NIE AI')).toHaveLength(2)
+    const test001Evidence = screen.getByRole('region', { name: 'Dowód 500 m dla TEST 001' })
+    expect(within(test001Evidence).getAllByText('ORYGINALNY OFICJALNY PRODUKT SATELITARNY · NIE AI')).toHaveLength(2)
     fireEvent.click(screen.getByText('Pokaż pochodne nakładki pomiarowe — nie są oryginalnymi zdjęciami'))
     expect(screen.getAllByText('PRODUKT POCHODNY · NIE JEST ORYGINALNYM ZDJĘCIEM')).toHaveLength(2)
   })

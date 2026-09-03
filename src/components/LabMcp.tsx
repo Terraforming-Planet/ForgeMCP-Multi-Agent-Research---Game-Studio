@@ -20,6 +20,12 @@ import {
 import { readLocalJson, writeLocalJson } from '../lib/storage'
 import { compactReportText, mobilePreviewUrl } from '../lib/reportDisplay'
 import {
+  TEST_001_AOI,
+  TEST_001_COMPARISON_IMAGES,
+  TEST_001_EVIDENCE_REVISION,
+  TEST_001_MEASUREMENT_URL,
+} from '../integrations/terra/labmcp'
+import {
   createResearchArchiveEntry,
   countMatchingResearchRuns,
   readResearchArchive,
@@ -280,7 +286,7 @@ export function LabMcp() {
     }
   }
 
-  const run = async () => {
+  const runConfiguredInvestigation = async (activeForm: FormState) => {
     setRunning(true)
     setError('')
     setResult(null)
@@ -291,23 +297,23 @@ export function LabMcp() {
     setImageDimensions({})
     setFailedImages({})
     try {
-      const latitude = form.latitude.trim() ? Number(form.latitude) : undefined
-      const longitude = form.longitude.trim() ? Number(form.longitude) : undefined
+      const latitude = activeForm.latitude.trim() ? Number(activeForm.latitude) : undefined
+      const longitude = activeForm.longitude.trim() ? Number(activeForm.longitude) : undefined
       const input: HazardInvestigationInput = {
-        regionQuery: form.regionQuery,
+        regionQuery: activeForm.regionQuery,
         ...(latitude === undefined ? {} : { latitude }),
         ...(longitude === undefined ? {} : { longitude }),
-        radiusKm: Number(form.radiusKm),
-        startYear: Number(form.startYear),
-        endYear: Number(form.endYear),
-        season: form.season,
-        hazardTypes: form.hazards,
-        depth: form.depth,
-        timelineMode: form.timelineMode,
-        spatialMode: form.spatialMode,
-        ...(form.spatialMode === 'regional-patrol' ? { patrolTileCount: 20, patrolFrameWidthKm: 1 } : {}),
-        referenceQuery: form.preset === 'test001' ? 'Toruń' : undefined,
-        ...(form.preset === 'test001' ? {
+        radiusKm: Number(activeForm.radiusKm),
+        startYear: Number(activeForm.startYear),
+        endYear: Number(activeForm.endYear),
+        season: activeForm.season,
+        hazardTypes: activeForm.hazards,
+        depth: activeForm.depth,
+        timelineMode: activeForm.timelineMode,
+        spatialMode: activeForm.spatialMode,
+        ...(activeForm.spatialMode === 'regional-patrol' ? { patrolTileCount: 20, patrolFrameWidthKm: 1 } : {}),
+        referenceQuery: activeForm.preset === 'test001' ? 'Toruń' : undefined,
+        ...(activeForm.preset === 'test001' ? {
           caseId: 'test-001-forest-pond-kuchnia' as const,
           focusLatitude: 53.594595,
           focusLongitude: 19.00014,
@@ -323,6 +329,14 @@ export function LabMcp() {
     } finally {
       setRunning(false)
     }
+  }
+
+  const run = () => runConfiguredInvestigation(form)
+
+  const runPinnedTest001 = () => {
+    const test001Form: FormState = { preset: 'test001', ...PRESETS.test001 }
+    setForm(test001Form)
+    return runConfiguredInvestigation(test001Form)
   }
 
   const saveResearch = () => {
@@ -407,6 +421,31 @@ export function LabMcp() {
         <StatusBadge value={result ? sourceState(result.signalState) : 'AWAITING AREA'} />
         <StatusBadge value={result ? `QA ${result.qaStatus}` : 'FIELD VERIFICATION REQUIRED'} />
       </div>
+    </section>
+
+    <section className="card lab-verified-baseline" aria-label="Przypięty przykład oryginalnych zdjęć satelitarnych TEST 001">
+      <div className="lab-section-title">
+        <div><p className="eyebrow">DZIAŁAJĄCY PRZYKŁAD · TEST 001 · DWA ORYGINALNE ŹRÓDŁA</p><h2>Najpierw zobacz dowód, potem uruchom pełne dochodzenie</h2></div>
+        <StatusBadge value="PINNED PUBLIC EVIDENCE" />
+      </div>
+      <p>Te dwa pliki są przypiętymi eksportami AOI z publicznego repozytorium badawczego: Landsat-5 z 2000 roku i Sentinel-2B z 2026 roku. Nie są obrazami AI ani pochodnymi maskami. Samo porównanie obrazów nie ustala przyczyny zmiany ani nie autoryzuje alarmu.</p>
+      <div className="lab-imagery-grid lab-fixed-crop-grid lab-baseline-grid">
+        {TEST_001_COMPARISON_IMAGES.map(image => {
+          const imageKey = `baseline-original-${image.year}`
+          const sourceName = image.year === 2000 ? 'Landsat-5 · 30 m' : 'Sentinel-2B · 10 m'
+          return <figure key={image.year}>
+            {failedImages[imageKey]
+              ? <a className="lab-image-placeholder" href={image.url} target="_blank" rel="noreferrer">Podgląd nie został pobrany przez tę przeglądarkę. Otwórz przypięty plik źródłowy ↗</a>
+              : <a className="lab-image-link" href={image.url} target="_blank" rel="noreferrer"><img src={image.url} loading="eager" decoding="async" alt={`Oryginalny obraz satelitarny TEST 001 z ${image.year} roku`} onLoad={event => recordImageLoad(imageKey, event.currentTarget)} onError={() => recordImageFailure(imageKey)} /></a>}
+            <figcaption><StatusBadge value="ORYGINALNY OFICJALNY PRODUKT SATELITARNY · NIE AI" /><b>{image.year} · {sourceName}</b><small>przypięty natywny eksport AOI · wejście modelu w tej karcie: NIE · {imageDimensions[imageKey] ?? 'wczytywanie rozmiaru'}</small></figcaption>
+          </figure>
+        })}
+      </div>
+      <div className="toolbar">
+        <button type="button" className="lab-primary" onClick={runPinnedTest001} disabled={running}>{running ? 'Trwa pełne dochodzenie…' : 'Uruchom pełne dochodzenie TEST 001'}</button>
+        <a className="button-link" href={TEST_001_MEASUREMENT_URL} target="_blank" rel="noreferrer">Otwórz zapis pomiaru ↗</a>
+      </div>
+      <p className="lab-note"><b>Stały cel:</b> {TEST_001_AOI.pondFocus.lat.toFixed(6)}, {TEST_001_AOI.pondFocus.lon.toFixed(6)} · kadr analityczny {TEST_001_AOI.pondFocus.requestedFrameWidthM} m · rewizja dowodu <code>{TEST_001_EVIDENCE_REVISION.slice(0, 12)}</code>. Pełny przebieg może nadal zwrócić brak danych dla źródła chwilowo niedostępnego; ta karta nie podmienia wyniku dowolnego AOI.</p>
     </section>
 
     <section className="card lab-builder" aria-label="Konfiguracja dochodzenia środowiskowego">

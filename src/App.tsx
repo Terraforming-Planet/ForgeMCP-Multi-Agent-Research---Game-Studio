@@ -5,6 +5,7 @@ import cosmicHero from './assets/forgemcp-hero-background.webp'
 import { agentRegistry } from './agents/registry'
 import { ApprovalQueue } from './components/ApprovalQueue'
 import { ChallengeEvidence } from './components/ChallengeEvidence'
+import { CubePremiumSubscription } from './components/CubePremiumSubscription'
 import { GameStudio } from './components/GameStudio'
 import { LabMcp } from './components/LabMcp'
 import { ProductLab } from './components/ProductLab'
@@ -69,7 +70,7 @@ function Home() {
           <h2>Game Studio</h2>
           <p>Apply Arctic, Sahara, Ocean and Earth–Space materials to board and piece concepts, inspect Cube work in progress and execute the real four-game deterministic benchmark.</p>
           <ul><li>Cube Chess 8×8×8 reference</li><li>Classic + Lab LEDColor previews</li><li>Reversible visual QA</li></ul>
-          <Link className="button-link button-link--primary" to="/game-studio">Open Game Studio</Link>
+          <div className="workspace-card__actions"><Link className="button-link button-link--primary" to="/game-studio">Open Game Studio</Link><Link className="button-link button-link--quiet" to="/cube-premium">Cube Premium · 30-day local test</Link></div>
         </article>
 
         <article className="workspace-card workspace-card--commerce">
@@ -269,7 +270,7 @@ function MoreMenu() {
   return <div className="desktop-more" ref={menuRef}>
     <button type="button" aria-expanded={open} aria-controls="desktop-more-menu" onClick={() => setOpenPath(open ? null : location.pathname)}>More</button>
     {open ? <div id="desktop-more-menu">
-      <Link to="/dashboard">Control Center</Link><Link to="/stations">4 Station Concepts</Link><Link to="/research-archive">Research Archive</Link><Link to="/tools">WebMCP Tools</Link><Link to="/challenge">Challenge Evidence</Link><Link to="/approval">Human Approval</Link><Link to="/integrations">Integration Status</Link>
+      <Link to="/dashboard">Control Center</Link><Link to="/stations">4 Station Concepts</Link><Link to="/cube-premium">Cube Premium Subscription · TEST</Link><Link to="/research-archive">Research Archive</Link><Link to="/tools">WebMCP Tools</Link><Link to="/challenge">Challenge Evidence</Link><Link to="/approval">Human Approval</Link><Link to="/integrations">Integration Status</Link>
     </div> : null}
   </div>
 }
@@ -287,6 +288,7 @@ function App() {
           <Link to="/">Home</Link>
           <Link to="/labmcp">Terra Satellite Lab</Link>
           <Link to="/game-studio">Game Studio</Link>
+          <Link to="/cube-premium">Cube Premium <small>TEST</small></Link>
           <Link to="/shop-lab">3D + Shopify <small>TEST</small></Link>
           <MoreMenu />
         </nav>
@@ -305,6 +307,8 @@ function App() {
           <Route path="/cube" element={<GameStudio />} />
           <Route path="/selfplay" element={<GameStudio />} />
           <Route path="/creation" element={<GameStudio />} />
+          <Route path="/cube-premium" element={<CubePremiumSubscription />} />
+          <Route path="/subscription" element={<CubePremiumSubscription />} />
           <Route path="/shop-lab" element={<ProductLab />} />
           <Route path="/shopify-test" element={<ProductLab />} />
           <Route path="/tools" element={<ToolInspector />} />

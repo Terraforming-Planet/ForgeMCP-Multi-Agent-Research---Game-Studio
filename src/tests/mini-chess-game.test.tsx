@@ -47,16 +47,53 @@ describe('MiniChessGame', () => {
     expect(screen.getByText(/outside this piece's legal geometry/i)).toBeInTheDocument()
   })
 
-  it('changes the scene visibly from a local prompt and labels it honestly', async () => {
+  it('generates the scene visibly from a local prompt and labels it honestly', async () => {
     const user = userEvent.setup()
     const { container } = render(<MiniChessGame />)
     const prompt = screen.getByLabelText(/describe board lighting/i)
     await user.clear(prompt)
     await user.type(prompt, 'Sahara research board with amber warning LEDs')
-    await user.click(screen.getByRole('button', { name: 'Apply scene prompt' }))
+    await user.click(screen.getByRole('button', { name: 'Generate playable game' }))
 
     expect(container.querySelector('.mini-chess')).toHaveAttribute('data-scene', 'sahara')
-    expect(screen.getByText('Sahara signal')).toBeInTheDocument()
+    expect(screen.getAllByText('Sahara signal').length).toBeGreaterThan(0)
+    expect(screen.getByText(/Generated game-[a-f0-9]{8} from the supported template/i)).toBeInTheDocument()
     expect(screen.getByText(/does not call an AI model or generate a 3D asset/i)).toBeInTheDocument()
+  })
+
+  it('resets the playable board when it generates a new versioned blueprint', async () => {
+    const user = userEvent.setup()
+    const { container } = render(<MiniChessGame />)
+
+    await user.click(screen.getByRole('gridcell', { name: 'e2 white pawn' }))
+    await user.click(screen.getByRole('gridcell', { name: 'e4 empty' }))
+    expect(screen.getByRole('gridcell', { name: 'e4 white pawn' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Earth + computer' }))
+    await user.click(screen.getByRole('button', { name: 'Generate playable game' }))
+
+    expect(screen.getByRole('gridcell', { name: 'e2 white pawn' })).toBeInTheDocument()
+    expect(screen.getByRole('gridcell', { name: 'e4 empty' })).toBeInTheDocument()
+    expect(container.querySelector('.mini-chess')).toHaveAttribute('data-piece-family', 'earth-guardian')
+    expect(screen.getByText('deterministic-baseline-v1')).toBeInTheDocument()
+    expect(screen.getByText('0 plies recorded')).toBeInTheDocument()
+  })
+
+  it('plays one deterministic computer reply as part of a reversible human turn', async () => {
+    const user = userEvent.setup()
+    render(<MiniChessGame />)
+
+    await user.selectOptions(screen.getByLabelText('Opponent'), 'deterministic-computer')
+    await user.click(screen.getByRole('button', { name: 'Generate playable game' }))
+    await user.click(screen.getByRole('gridcell', { name: 'e2 white pawn' }))
+    await user.click(screen.getByRole('gridcell', { name: 'e4 empty' }))
+
+    expect(screen.getByText('WHITE TURN')).toBeInTheDocument()
+    expect(screen.getByText(/Computer reply: Black/i)).toBeInTheDocument()
+    expect(screen.getByText('2 plies recorded')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Undo move' }))
+    expect(screen.getByRole('gridcell', { name: 'e2 white pawn' })).toBeInTheDocument()
+    expect(screen.getByText('0 plies recorded')).toBeInTheDocument()
   })
 })
