@@ -1,7 +1,5 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-
-const html = readFileSync(new URL('../../public/playable-worlds/index.html', import.meta.url), 'utf8')
+import html from '../../public/playable-worlds/index.html?raw'
 
 describe('playable research worlds V4', () => {
   it('keeps all four real Terra source applications linked', () => {
