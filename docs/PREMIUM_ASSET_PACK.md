@@ -17,6 +17,8 @@ Use this pipeline instead:
 7. Store approved runtime files in object storage/CDN and load only the selected item on demand, with progress, cancel, retry and a static fallback.
 8. Keep a small, fully working open demo in the public repository: four procedural station proxies, board, chess figures and Earth Guardian.
 
+The public `/#/cube-premium` route supplies that working fallback today. It generates three board geometries and seven figure/character presets locally from versioned specifications, shows the exact generated glTF and PNG texture in paired previews, exposes QA manifests and includes an editable prompt. These procedural samples are independent of the external archive and remain available when no CDN asset has been approved.
+
 ## Required catalog record
 
 ```json
