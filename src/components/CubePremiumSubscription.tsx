@@ -8,6 +8,7 @@ import {
   type StorageLike,
 } from '../integrations/cube/premiumTrial'
 import { StatusBadge } from './StatusBadge'
+import { CubePremiumAssetStudio } from './CubePremiumAssetStudio'
 import './CubePremiumSubscription.css'
 
 interface CubePremiumSubscriptionProps {
@@ -77,6 +78,8 @@ export function CubePremiumSubscription({ storage = defaultStorage(), now = () =
         {expired ? <p>Wygasł {formatDate(trial.endsAt)} UTC. Bezpłatna gra, benchmark i podglądy nadal działają.</p> : null}
         <small>{trial.storedLocally ? 'Stan zapisano wyłącznie w pamięci tej przeglądarki.' : 'Nie utworzono jeszcze lokalnego zapisu testu.'}</small>
       </section>
+
+      <CubePremiumAssetStudio trialActive={active} />
 
       <section className="cube-premium-grid" aria-label="Zakres Cube Chess Premium">
         <article>
