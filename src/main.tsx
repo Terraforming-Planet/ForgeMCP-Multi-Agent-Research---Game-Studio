@@ -3,8 +3,10 @@ import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
+import { installReviewerCubeGuestEntry } from './reviewerCubeGuestEntry'
 import { installReviewerCubePublicEntry } from './reviewerCubePublicEntry'
 
+installReviewerCubeGuestEntry()
 installReviewerCubePublicEntry()
 
 createRoot(document.getElementById('root')!).render(
