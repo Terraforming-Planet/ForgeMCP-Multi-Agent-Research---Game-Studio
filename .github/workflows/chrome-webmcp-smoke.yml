@@ -42,6 +42,7 @@ jobs:
           FORGEMCP_TARGET_URL: https://terraforming-planet.github.io/ForgeMCP-Multi-Agent-Research---Game-Studio/#/dashboard
         run: xvfb-run -a node scripts/chrome-webmcp-smoke.mjs
       - name: Public GitHub Pages responsive home smoke
+        if: github.event_name != 'pull_request'
         env:
           FORGEMCP_HOME_URL: https://terraforming-planet.github.io/ForgeMCP-Multi-Agent-Research---Game-Studio/#/
         run: xvfb-run -a node scripts/responsive-home-smoke.mjs
